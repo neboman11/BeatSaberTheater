@@ -446,6 +446,11 @@ public class VideoLoader(
         }
     }
 
+    public static bool LevelHasVideo(BeatmapLevel level)
+    {
+        return MapsWithVideo.ContainsKey(level.levelID);
+    }
+
     public bool DeleteConfig(VideoConfig videoConfig, BeatmapLevel level)
     {
         if (videoConfig.LevelDir is null)
