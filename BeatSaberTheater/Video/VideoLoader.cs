@@ -322,6 +322,11 @@ public class VideoLoader(
         return videoConfig;
     }
 
+    public static bool LevelHasVideo(BeatmapLevel level)
+    {
+        return MapsWithVideo.ContainsKey(level.levelID);
+    }
+
     public VideoConfig? GetConfigForLevel(BeatmapLevel? level)
     {
         if (InstalledMods.BeatSaberPlaylistsLib) level = level.GetLevelFromPlaylistIfAvailable();
@@ -444,11 +449,6 @@ public class VideoLoader(
             _loggingService.Error("Failed to delete video at " + videoConfig.VideoPath);
             _loggingService.Error(e);
         }
-    }
-
-    public static bool LevelHasVideo(BeatmapLevel level)
-    {
-        return MapsWithVideo.ContainsKey(level.levelID);
     }
 
     public bool DeleteConfig(VideoConfig videoConfig, BeatmapLevel level)
