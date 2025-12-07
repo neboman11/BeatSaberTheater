@@ -1,5 +1,6 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
+using BeatSaberTheater.Video;
 using BetterSongList.FilterModels;
 using BetterSongList.Interfaces;
 
@@ -13,8 +14,7 @@ public class HasVideoFilter : IFilter, ITransformerPlugin
 
     public bool GetValueFor(BeatmapLevel level)
     {
-        // return VideoLoader.MapsWithVideo.TryGetValue(level.levelID, out _);
-        return false;
+        return VideoLoader.LevelHasVideo(level);
     }
 
     public Task Prepare(CancellationToken cancelToken)

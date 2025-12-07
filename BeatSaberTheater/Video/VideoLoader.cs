@@ -322,6 +322,11 @@ public class VideoLoader(
         return videoConfig;
     }
 
+    public static bool LevelHasVideo(BeatmapLevel level)
+    {
+        return MapsWithVideo.ContainsKey(level.levelID);
+    }
+
     public VideoConfig? GetConfigForLevel(BeatmapLevel? level)
     {
         if (InstalledMods.BeatSaberPlaylistsLib) level = level.GetLevelFromPlaylistIfAvailable();
