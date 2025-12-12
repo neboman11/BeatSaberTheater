@@ -9,6 +9,17 @@ This mod is a rewrite/successor to the [Cinema mod](https://github.com/Kevga/Bea
 
 This mod is not yet available on BeatMods and must be installed manually.
 
+### Prerequisites
+
+BeatSaberTheater depends on yt-dlp for downloading the videos from YouTube. The version available in BeatMods is outdated and will
+not work with Theater, so it should be uninstalled before following these instruction steps to ensure the correct version doesn't get downgraded.
+
+#### Installing yt-dlp
+
+1. Install Deno using [these instructions](https://docs.deno.com/runtime/getting_started/installation/#download-and-install)
+2. Download the latest `yt-dlp.exe` from [here](https://github.com/yt-dlp/yt-dlp/releases/tag/2025.12.08)
+3. Copy `yt-dlp.exe` to `<Beat Saber directory>/Libs` (overwrite if it already exists)
+
 ### Manual Installation
 
 1. Download the latest release from [here](https://github.com/neboman11/BeatSaberTheater/releases/latest).
