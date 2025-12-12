@@ -17,7 +17,7 @@ not work with Theater, so it should be uninstalled before following these instru
 #### Installing yt-dlp
 
 1. Install Deno using [these instructions](https://docs.deno.com/runtime/getting_started/installation/#download-and-install)
-2. Download the latest `yt-dlp.exe` from [here](https://github.com/yt-dlp/yt-dlp/releases/tag/2025.12.08)
+2. Download the latest `yt-dlp.exe` from [here](https://github.com/yt-dlp/yt-dlp/releases/latest)
 3. Copy `yt-dlp.exe` to `<Beat Saber directory>/Libs` (overwrite if it already exists)
 
 ### Manual Installation
