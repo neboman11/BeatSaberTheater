@@ -37,7 +37,6 @@ can be installed through your favorite mod manager (BSManager, ModAssistant, etc
 * SiraUtil
 * BeatSaberPlaylistsLib
 * ffmpeg
-* yt-dlp
 * BeatSaberMarkupLanguage
 * BetterSongList
 
