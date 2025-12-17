@@ -48,7 +48,7 @@ internal class DownloadService : YoutubeDLServiceBase
     private readonly VideoLoader _videoLoader;
 
     public DownloadService(PluginConfig config, TheaterCoroutineStarter coroutineStarter, LoggingService loggingService,
-        VideoLoader videoLoader) : base(loggingService)
+        VideoLoader videoLoader, YtDlpUpdateService ytDlpUpdateService) : base(loggingService, ytDlpUpdateService)
     {
         _config = config;
         _coroutineStarter = coroutineStarter;
