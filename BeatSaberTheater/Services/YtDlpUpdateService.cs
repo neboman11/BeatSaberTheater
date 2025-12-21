@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Threading.Tasks;
 using BeatSaberTheater.Util;
@@ -160,10 +161,63 @@ public class YtDlpUpdateService : IInitializable
             {
                 await DownloadLatest();
             }
+            await CheckAndDownloadDeno();
         }
         catch (Exception ex)
         {
-            _loggingService.Error($"Error during yt-dlp update check: {ex}");
+            _loggingService.Error($"Error during update check: {ex}");
+        }
+    }
+
+    private async Task CheckAndDownloadDeno()
+    {
+        string denoPath = Path.Combine(TheaterLibsPath, "deno.exe");
+        if (File.Exists(denoPath)) return;
+
+        try
+        {
+            var request = UnityWebRequest.Get("https://api.github.com/repos/denoland/deno/releases/latest");
+            request.SetRequestHeader("User-Agent", "BeatSaberTheater");
+            var operation = request.SendWebRequest();
+            while (!operation.isDone) await Task.Yield();
+            if (request.result != UnityWebRequest.Result.Success)
+                throw new Exception(request.error);
+
+            var json = JObject.Parse(request.downloadHandler.text);
+            var assets = json["assets"] as JArray;
+            var zipAsset = assets?.FirstOrDefault(a => a["name"]?.ToString() == "deno-x86_64-pc-windows-msvc.zip");
+            if (zipAsset == null) return;
+
+            var downloadUrl = zipAsset["browser_download_url"]?.ToString();
+            if (downloadUrl == null) return;
+
+            // Download zip to temp
+            string tempZip = Path.GetTempFileName() + ".zip";
+            var downloadRequest = UnityWebRequest.Get(downloadUrl);
+            downloadRequest.downloadHandler = new DownloadHandlerFile(tempZip);
+            var downloadOperation = downloadRequest.SendWebRequest();
+            while (!downloadOperation.isDone) await Task.Yield();
+            if (downloadRequest.result != UnityWebRequest.Result.Success)
+                throw new Exception(downloadRequest.error);
+
+            // Extract deno.exe
+            using (var archive = ZipFile.OpenRead(tempZip))
+            {
+                var denoEntry = archive.GetEntry("deno.exe");
+                if (denoEntry != null)
+                {
+                    if (!Directory.Exists(TheaterLibsPath)) Directory.CreateDirectory(TheaterLibsPath);
+                    denoEntry.ExtractToFile(denoPath, true);
+                    _loggingService.Info("Downloaded and extracted deno.exe");
+                }
+            }
+
+            // Clean up temp zip
+            File.Delete(tempZip);
+        }
+        catch (Exception ex)
+        {
+            _loggingService.Error($"Error downloading deno: {ex}");
         }
     }
 }
