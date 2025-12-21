@@ -17,8 +17,9 @@ public class YtDlpUpdateService : IInitializable
 
     public string YtDlpPath => File.Exists(TheaterYtDlpPath) ? TheaterYtDlpPath : DefaultYtDlpPath;
 
+    private string TheaterLibsPath => Path.Combine(UnityGame.LibraryPath, "Theater");
     private string DefaultYtDlpPath => Path.Combine(UnityGame.LibraryPath, "yt-dlp.exe");
-    private string TheaterYtDlpPath => Path.Combine(UnityGame.LibraryPath, "Theater", "yt-dlp.exe");
+    private string TheaterYtDlpPath => Path.Combine(TheaterLibsPath, "yt-dlp.exe");
 
     public YtDlpUpdateService(LoggingService loggingService)
     {
@@ -123,6 +124,19 @@ public class YtDlpUpdateService : IInitializable
                 throw new Exception(downloadRequest.error);
 
             _loggingService.Info("Downloaded latest yt-dlp.exe");
+
+            // Copy ffmpeg.exe to Theater directory if it doesn't exist
+            string theaterFfmpegPath = Path.Combine(TheaterLibsPath, "ffmpeg.exe");
+            if (!File.Exists(theaterFfmpegPath))
+            {
+                string baseFfmpegPath = Path.Combine(UnityGame.LibraryPath, "ffmpeg.exe");
+                if (File.Exists(baseFfmpegPath))
+                {
+                    File.Copy(baseFfmpegPath, theaterFfmpegPath);
+                    _loggingService.Info("Copied ffmpeg.exe to Theater directory");
+                }
+            }
+
             return true;
         }
         catch (Exception ex)
