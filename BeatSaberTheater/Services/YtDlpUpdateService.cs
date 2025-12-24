@@ -14,6 +14,7 @@ namespace BeatSaberTheater.Services;
 
 public class YtDlpUpdateService : IInitializable
 {
+    private readonly PluginConfig _config;
     private readonly LoggingService _loggingService;
 
     public string YtDlpPath => File.Exists(TheaterYtDlpPath) ? TheaterYtDlpPath : DefaultYtDlpPath;
@@ -22,8 +23,9 @@ public class YtDlpUpdateService : IInitializable
     private string DefaultYtDlpPath => Path.Combine(UnityGame.LibraryPath, "yt-dlp.exe");
     private string TheaterYtDlpPath => Path.Combine(TheaterLibsPath, "yt-dlp.exe");
 
-    public YtDlpUpdateService(LoggingService loggingService)
+    internal YtDlpUpdateService(PluginConfig config, LoggingService loggingService)
     {
+        _config = config;
         _loggingService = loggingService;
     }
 
@@ -96,7 +98,7 @@ public class YtDlpUpdateService : IInitializable
         }
     }
 
-    public async Task<bool> DownloadLatest()
+    public async Task DownloadLatest()
     {
         try
         {
@@ -109,10 +111,18 @@ public class YtDlpUpdateService : IInitializable
             var json = JObject.Parse(request.downloadHandler.text);
             var assets = json["assets"] as JArray;
             var exeAsset = assets?.FirstOrDefault(a => a["name"]?.ToString() == "yt-dlp.exe");
-            if (exeAsset == null) return false;
+            if (exeAsset == null)
+            {
+                _config.PluginEnabled = false;
+                return;
+            }
 
             var downloadUrl = exeAsset["browser_download_url"]?.ToString();
-            if (downloadUrl == null) return false;
+            if (downloadUrl == null)
+            {
+                _config.PluginEnabled = false;
+                return;
+            }
 
             var dir = Path.GetDirectoryName(TheaterYtDlpPath);
             if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
@@ -137,13 +147,11 @@ public class YtDlpUpdateService : IInitializable
                     _loggingService.Info("Copied ffmpeg.exe to Theater directory");
                 }
             }
-
-            return true;
         }
         catch (Exception ex)
         {
             _loggingService.Error($"Error downloading yt-dlp: {ex}");
-            return false;
+            _config.PluginEnabled = false;
         }
     }
 
@@ -166,6 +174,7 @@ public class YtDlpUpdateService : IInitializable
         catch (Exception ex)
         {
             _loggingService.Error($"Error during update check: {ex}");
+            _config.PluginEnabled = false;
         }
     }
 
@@ -218,6 +227,7 @@ public class YtDlpUpdateService : IInitializable
         catch (Exception ex)
         {
             _loggingService.Error($"Error downloading deno: {ex}");
+            _config.PluginEnabled = false;
         }
     }
 }
