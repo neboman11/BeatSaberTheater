@@ -328,7 +328,8 @@ internal class DownloadService : YoutubeDLServiceBase
                                        " --no-playlist" + // Don't download playlists, only the first video
                                        " --no-part" + // Don't store download in parts, write directly to file
                                        " --no-mtime" + //Video last modified will be when it was downloaded, not when it was uploaded to youtube
-                                       " --socket-timeout 10"; //Retry if no response in 10 seconds Note: Not if download takes more than 10 seconds but if the time between any 2 messages from the server is 10 seconds
+                                       " --socket-timeout 10" + //Retry if no response in 10 seconds Note: Not if download takes more than 10 seconds but if the time between any 2 messages from the server is 10 seconds
+                                       $" --js-runtimes deno:{_ytDlpUpdateService.DenoDlpPath}";
 
         if (format == VideoFormats.Format.Webm)
         {

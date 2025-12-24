@@ -19,6 +19,7 @@ public class YtDlpUpdateService : IInitializable
     private readonly LoggingService _loggingService;
 
     public string YtDlpPath => File.Exists(TheaterYtDlpPath) ? TheaterYtDlpPath : DefaultYtDlpPath;
+    public string DenoDlpPath => Path.Combine(TheaterLibsPath, "deno.exe");
 
     private string TheaterLibsPath => Path.Combine(UnityGame.LibraryPath, "Theater");
     private string DefaultYtDlpPath => Path.Combine(UnityGame.LibraryPath, "yt-dlp.exe");
