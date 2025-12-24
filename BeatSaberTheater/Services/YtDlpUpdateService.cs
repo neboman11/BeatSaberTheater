@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -165,11 +166,12 @@ public class YtDlpUpdateService : IInitializable
     {
         try
         {
+            var tasks = new List<Task> { CheckAndDownloadDeno() };
             if (await CheckForUpdate())
             {
-                await DownloadLatest();
+                tasks.Add(DownloadLatest());
             }
-            await CheckAndDownloadDeno();
+            await Task.WhenAll(tasks);
         }
         catch (Exception ex)
         {
