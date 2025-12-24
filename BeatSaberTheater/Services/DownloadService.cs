@@ -146,6 +146,11 @@ internal class DownloadService : YoutubeDLServiceBase
     {
         if (string.IsNullOrWhiteSpace(eventArgs.Data)) return;
 
+        if (eventArgs.Data.Contains("No supported JavaScript runtime could be found."))
+        {
+            _loggingService.Warn("yt-dlp could not find deno.exe - YouTube download may not work!");
+        }
+        
         var buffer = _stderrBuffers.GetOrAdd(video, _ => new StringBuilder());
         buffer.AppendLine(eventArgs.Data);
     }
@@ -329,7 +334,7 @@ internal class DownloadService : YoutubeDLServiceBase
                                        " --no-part" + // Don't store download in parts, write directly to file
                                        " --no-mtime" + //Video last modified will be when it was downloaded, not when it was uploaded to youtube
                                        " --socket-timeout 10" + //Retry if no response in 10 seconds Note: Not if download takes more than 10 seconds but if the time between any 2 messages from the server is 10 seconds
-                                       $" --js-runtimes deno:{_ytDlpUpdateService.DenoDlpPath}";
+                                       $" --js-runtimes deno:\"{_ytDlpUpdateService.DenoDlpPath}\"";
 
         if (format == VideoFormats.Format.Webm)
         {
