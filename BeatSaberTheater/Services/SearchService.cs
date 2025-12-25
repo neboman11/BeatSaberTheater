@@ -23,8 +23,9 @@ internal class SearchService : YoutubeDLServiceBase
     private readonly PluginConfig _config;
     private readonly TheaterCoroutineStarter _coroutineStarter;
 
-    public SearchService(PluginConfig config, TheaterCoroutineStarter coroutineStarter, LoggingService loggingService)
-        : base(loggingService)
+    public SearchService(PluginConfig config, TheaterCoroutineStarter coroutineStarter, LoggingService loggingService,
+        YtDlpUpdateService ytDlpUpdateService)
+        : base(loggingService, ytDlpUpdateService)
     {
         _config = config;
         _coroutineStarter = coroutineStarter;

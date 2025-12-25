@@ -10,24 +10,25 @@ namespace BeatSaberTheater.Services;
 
 public abstract class YoutubeDLServiceBase : IInitializable
 {
-    private readonly string _youtubeDLFilepath = Path.Combine(UnityGame.LibraryPath, "yt-dlp.exe");
     private readonly string _ffmpegFilepath = Path.Combine(UnityGame.LibraryPath, "ffmpeg.exe");
     private readonly string _youtubeDLConfigFilepath = Path.Combine(UnityGame.UserDataPath, "youtube-dl.conf");
 
     private bool? _librariesAvailable;
 
     protected readonly LoggingService _loggingService;
+    protected readonly YtDlpUpdateService _ytDlpUpdateService;
 
-    public YoutubeDLServiceBase(LoggingService loggingService)
+    public YoutubeDLServiceBase(LoggingService loggingService, YtDlpUpdateService ytDlpUpdateService)
     {
         _loggingService = loggingService;
+        _ytDlpUpdateService = ytDlpUpdateService;
     }
 
     public bool LibrariesAvailable()
     {
         if (_librariesAvailable != null) return _librariesAvailable.Value;
 
-        _librariesAvailable = File.Exists(_youtubeDLFilepath) && File.Exists(_ffmpegFilepath);
+        _librariesAvailable = File.Exists(_ytDlpUpdateService.YtDlpPath) && File.Exists(_ffmpegFilepath);
         return _librariesAvailable.Value;
     }
 
@@ -88,7 +89,7 @@ public abstract class YoutubeDLServiceBase : IInitializable
         {
             StartInfo =
             {
-                FileName = _youtubeDLFilepath,
+                FileName = _ytDlpUpdateService.YtDlpPath,
                 Arguments = arguments,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
