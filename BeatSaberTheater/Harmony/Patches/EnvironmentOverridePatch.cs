@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using JetBrains.Annotations;
+using UnityEngine;
 
 namespace BeatSaberTheater.Harmony.Patches;
 
@@ -19,8 +20,7 @@ internal static class StandardLevelScenesTransitionSetupDataSOInit
     private static MethodInfo TargetMethod()
     {
         return AccessTools.FirstMethod(typeof(StandardLevelScenesTransitionSetupDataSO),
-            m => m.Name == nameof(StandardLevelScenesTransitionSetupDataSO.Init) &&
-                 m.GetParameters().All(p => p.ParameterType != typeof(IBeatmapLevelData)));
+            m => m.Name == nameof(StandardLevelScenesTransitionSetupDataSO.Init));
     }
 
     [UsedImplicitly]
@@ -39,8 +39,7 @@ internal static class MissionLevelScenesTransitionSetupDataSOInit
     private static MethodInfo TargetMethod()
     {
         return AccessTools.FirstMethod(typeof(MissionLevelScenesTransitionSetupDataSO),
-            m => m.Name == nameof(MissionLevelScenesTransitionSetupDataSO.Init) &&
-                 m.GetParameters().All(p => p.ParameterType != typeof(IBeatmapLevelData)));
+            m => m.Name == nameof(MissionLevelScenesTransitionSetupDataSO.Init));
     }
 
     [UsedImplicitly]

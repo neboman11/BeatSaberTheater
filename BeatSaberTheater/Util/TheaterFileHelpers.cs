@@ -70,7 +70,8 @@ public static class TheaterFileHelpers
 
     public static Texture? LoadPNGFromResources(string resourcePath)
     {
-        var fileData = BeatSaberMarkupLanguage.Utilities.GetResource(Assembly.GetExecutingAssembly(), resourcePath);
+        // Todo: Make me async?
+        var fileData = BeatSaberMarkupLanguage.Utilities.GetResourceAsync(Assembly.GetExecutingAssembly(), resourcePath).Result;
         if (fileData.Length <= 0) return null;
 
         var tex = new Texture2D(2, 2);

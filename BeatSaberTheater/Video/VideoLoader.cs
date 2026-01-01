@@ -513,8 +513,9 @@ public class VideoLoader(
 
     private IEnumerable<BundledConfig> LoadBundledConfigs()
     {
-        var buffer = BeatSaberMarkupLanguage.Utilities.GetResource(Assembly.GetExecutingAssembly(),
-            "BeatSaberTheater.Resources.configs.json");
+        // Todo: Make me async?
+        var buffer = BeatSaberMarkupLanguage.Utilities.GetResourceAsync(Assembly.GetExecutingAssembly(),
+            "BeatSaberTheater.Resources.configs.json").Result;
         var jsonString = Encoding.UTF8.GetString(buffer, 0, buffer.Length);
         var configs = JsonConvert.DeserializeObject<BundledConfig[]>(jsonString);
         if (configs == null)

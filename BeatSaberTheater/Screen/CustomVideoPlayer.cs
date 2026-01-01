@@ -227,8 +227,9 @@ public class CustomVideoPlayer : MonoBehaviour
         AssetBundle myLoadedAssetBundle;
         if (path == null)
         {
-            var bundle = BeatSaberMarkupLanguage.Utilities.GetResource(Assembly.GetExecutingAssembly(),
-                "BeatSaberTheater.Resources.bstheater.bundle");
+            // Todo: Make me async?
+            var bundle = BeatSaberMarkupLanguage.Utilities.GetResourceAsync(Assembly.GetExecutingAssembly(),
+                "BeatSaberTheater.Resources.bstheater.bundle").Result;
             if (bundle == null || bundle.Length == 0)
             {
                 Plugin._log.Error("GetResource failed");
