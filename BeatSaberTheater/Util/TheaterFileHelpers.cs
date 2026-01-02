@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.XR;
@@ -68,10 +69,9 @@ public static class TheaterFileHelpers
         return s;
     }
 
-    public static Texture? LoadPNGFromResources(string resourcePath)
+    public static async Task<Texture?> LoadPNGFromResources(string resourcePath)
     {
-        // Todo: Make me async?
-        var fileData = BeatSaberMarkupLanguage.Utilities.GetResourceAsync(Assembly.GetExecutingAssembly(), resourcePath).Result;
+        var fileData = await BeatSaberMarkupLanguage.Utilities.GetResourceAsync(Assembly.GetExecutingAssembly(), resourcePath);
         if (fileData.Length <= 0) return null;
 
         var tex = new Texture2D(2, 2);

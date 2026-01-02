@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using BeatSaberTheater.Download;
 using BeatSaberTheater.Models;
-using BeatSaberTheater.Settings;
 using BeatSaberTheater.Util;
 using Newtonsoft.Json;
 using SongCore.Data;
@@ -163,7 +162,7 @@ public class VideoConfig
         {
             fileName += ".mp4";
         }
-        
+
         return fileName;
     }
 }

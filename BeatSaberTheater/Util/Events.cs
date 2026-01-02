@@ -1,6 +1,4 @@
 ﻿using System;
-using BeatmapEditor3D.DataModels;
-using BeatSaberTheater.Video;
 using BeatSaberTheater.Video.Config;
 
 // ReSharper disable EventNeverSubscribedTo.Global

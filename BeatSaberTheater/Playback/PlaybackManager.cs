@@ -11,7 +11,6 @@ using BeatSaberTheater.Screen.Interfaces;
 using BeatSaberTheater.Util;
 using BeatSaberTheater.Video;
 using BeatSaberTheater.Video.Config;
-using BS_Utils;
 using BS_Utils.Gameplay;
 using BS_Utils.Utilities;
 using UnityEngine;
