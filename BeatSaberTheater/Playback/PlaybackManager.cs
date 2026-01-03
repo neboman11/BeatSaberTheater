@@ -217,8 +217,7 @@ public class PlaybackManager : MonoBehaviour
         if (BS_Utils.Plugin.LevelData.IsSet)
         {
             // Move to the environment scene to be picked up by Chroma
-            var sceneName = BS_Utils.Plugin.LevelData.GameplayCoreSceneSetupData.targetEnvironmentInfo.sceneInfo
-                .sceneName;
+            var sceneName = BS_Utils.Plugin.LevelData.GameplayCoreSceneSetupData.targetEnvironmentInfo.environmentSceneName;
             var scene = SceneManager.GetSceneByName(sceneName);
             SceneManager.MoveGameObjectToScene(gameObject, scene);
         }

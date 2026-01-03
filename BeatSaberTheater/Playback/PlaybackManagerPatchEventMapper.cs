@@ -6,7 +6,6 @@ using BeatSaberTheater.Harmony.Patches;
 using BeatSaberTheater.Harmony.Signals;
 using BeatSaberTheater.Util;
 using BeatSaberTheater.Video;
-using BeatSaberTheater.VideoMenu;
 using SongCore;
 using UnityEngine;
 using Zenject;

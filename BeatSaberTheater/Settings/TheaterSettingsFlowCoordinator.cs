@@ -1,6 +1,4 @@
-using System;
 using BeatSaberMarkupLanguage;
-using BeatSaberTheater.Util;
 using HMUI;
 
 namespace BeatSaberTheater.Settings;

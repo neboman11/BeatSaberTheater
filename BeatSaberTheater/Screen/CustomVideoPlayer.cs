@@ -1,9 +1,9 @@
 using System;
 using System.Diagnostics;
 using System.Reflection;
+using System.Threading.Tasks;
 using BeatSaberTheater.Screen.Interfaces;
 using BeatSaberTheater.Util;
-using BeatSaberTheater.Video;
 using BeatSaberTheater.Video.Config;
 using BS_Utils.Utilities;
 using UnityEngine;
@@ -101,7 +101,7 @@ public class CustomVideoPlayer : MonoBehaviour
         _screenManager = new ScreenManager(_config, _curvedSurfaceFactory, _customBloomPrePassFactory, _loggingService);
         CreateScreen();
         _screenRenderer = _screenManager.GetRenderer();
-        _screenRenderer.material = new Material(GetShader()) { color = _screenColorOff };
+        _screenRenderer.material = new Material(GetShader().Result) { color = _screenColorOff };
         _screenRenderer.material.enableInstancing = true;
 
         _player = gameObject.AddComponent<VideoPlayer>();
@@ -222,12 +222,12 @@ public class CustomVideoPlayer : MonoBehaviour
         return newScreen;
     }
 
-    private static Shader GetShader(string? path = null)
+    private static async Task<Shader> GetShader(string? path = null)
     {
         AssetBundle myLoadedAssetBundle;
         if (path == null)
         {
-            var bundle = BeatSaberMarkupLanguage.Utilities.GetResource(Assembly.GetExecutingAssembly(),
+            var bundle = await BeatSaberMarkupLanguage.Utilities.GetResourceAsync(Assembly.GetExecutingAssembly(),
                 "BeatSaberTheater.Resources.bstheater.bundle");
             if (bundle == null || bundle.Length == 0)
             {

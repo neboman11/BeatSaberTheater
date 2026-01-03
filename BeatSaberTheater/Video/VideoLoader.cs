@@ -511,9 +511,9 @@ public class VideoLoader(
         return videoConfig;
     }
 
-    private IEnumerable<BundledConfig> LoadBundledConfigs()
+    private async Task<IEnumerable<BundledConfig>> LoadBundledConfigs()
     {
-        var buffer = BeatSaberMarkupLanguage.Utilities.GetResource(Assembly.GetExecutingAssembly(),
+        var buffer = await BeatSaberMarkupLanguage.Utilities.GetResourceAsync(Assembly.GetExecutingAssembly(),
             "BeatSaberTheater.Resources.configs.json");
         var jsonString = Encoding.UTF8.GetString(buffer, 0, buffer.Length);
         var configs = JsonConvert.DeserializeObject<BundledConfig[]>(jsonString);
@@ -528,7 +528,7 @@ public class VideoLoader(
 
     public void Initialize()
     {
-        var configs = LoadBundledConfigs();
+        var configs = LoadBundledConfigs().Result;
         foreach (var config in configs) BundledConfigs.TryAdd(config.levelID, config.config);
     }
 

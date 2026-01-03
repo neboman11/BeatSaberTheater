@@ -10,7 +10,6 @@ using BeatSaberMarkupLanguage.GameplaySetup;
 using BeatSaberMarkupLanguage.Parser;
 using BeatSaberTheater.Download;
 using BeatSaberTheater.Playback;
-using BeatSaberTheater.Screen;
 using BeatSaberTheater.Services;
 using BeatSaberTheater.Util;
 using BeatSaberTheater.Video;
@@ -884,7 +883,7 @@ public class VideoMenuUI : IInitializable, IDisposable
         _downloadButton.interactable = false;
         var config =
             new VideoConfig(_searchService.SearchResults[_selectedCell], VideoLoader.GetTheaterLevelPath(_currentLevel))
-                { NeedsToSave = true };
+            { NeedsToSave = true };
         _videoLoader.AddConfigToCache(config, _currentLevel);
         _searchService.StopSearch();
         _downloadService.StartDownload(config, _config.QualityMode, _config.Format);
