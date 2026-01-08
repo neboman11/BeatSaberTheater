@@ -24,6 +24,8 @@
                           hover-hint="Determines how long to wait while downloading and converting the video before timing out."></string-setting>
             <string-setting apply-on-change="true" text='Search Timeout Seconds' value='search-timeout-seconds'
                           hover-hint="Determines how long to wait while searching for videos before timing out."></string-setting>
+            <bool-setting apply-on-change="true" text='yt-dlp Auto Config' value='ytdlp-auto-config'
+                          hover-hint='Allow yt-dlp to automatically resolve configuration files according to its own rules, instead of searching Theater directories.&#xD;&#xA;&#xD;&#xA;Recommended: Off'></bool-setting>
         </modifier-container>
     </tab>
 

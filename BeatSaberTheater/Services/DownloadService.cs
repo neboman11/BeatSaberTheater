@@ -48,7 +48,7 @@ internal class DownloadService : YoutubeDLServiceBase
     private readonly VideoLoader _videoLoader;
 
     public DownloadService(PluginConfig config, TheaterCoroutineStarter coroutineStarter, LoggingService loggingService,
-        VideoLoader videoLoader, YtDlpUpdateService ytDlpUpdateService) : base(loggingService, ytDlpUpdateService)
+        VideoLoader videoLoader, YtDlpUpdateService ytDlpUpdateService) : base(loggingService, ytDlpUpdateService, config)
     {
         _config = config;
         _coroutineStarter = coroutineStarter;
@@ -150,7 +150,7 @@ internal class DownloadService : YoutubeDLServiceBase
         {
             _loggingService.Warn("yt-dlp could not find deno.exe - YouTube download may not work!");
         }
-        
+
         var buffer = _stderrBuffers.GetOrAdd(video, _ => new StringBuilder());
         buffer.AppendLine(eventArgs.Data);
     }

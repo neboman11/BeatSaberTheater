@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using IPA.Utilities;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.XR;
@@ -131,4 +132,6 @@ public static class TheaterFileHelpers
 
         return string.Join("\n", info);
     }
+
+    public static string TheaterLibsPath => Path.Combine(UnityGame.LibraryPath, "Theater");
 }
