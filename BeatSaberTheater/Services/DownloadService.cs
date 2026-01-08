@@ -43,14 +43,12 @@ internal class DownloadService : YoutubeDLServiceBase
         "https://vimeo.com/"
     };
 
-    private readonly PluginConfig _config;
     private readonly TheaterCoroutineStarter _coroutineStarter;
     private readonly VideoLoader _videoLoader;
 
     public DownloadService(PluginConfig config, TheaterCoroutineStarter coroutineStarter, LoggingService loggingService,
         VideoLoader videoLoader, YtDlpUpdateService ytDlpUpdateService) : base(loggingService, ytDlpUpdateService, config)
     {
-        _config = config;
         _coroutineStarter = coroutineStarter;
         _videoLoader = videoLoader;
     }

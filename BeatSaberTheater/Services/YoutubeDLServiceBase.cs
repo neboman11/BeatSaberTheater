@@ -11,7 +11,7 @@ namespace BeatSaberTheater.Services;
 internal abstract class YoutubeDLServiceBase : IInitializable
 {
     private readonly string _ffmpegFilepath = Path.Combine(UnityGame.LibraryPath, "ffmpeg.exe");
-    private readonly PluginConfig _pluginConfig;
+    protected readonly PluginConfig _config;
 
     private bool? _librariesAvailable;
 
@@ -22,7 +22,7 @@ internal abstract class YoutubeDLServiceBase : IInitializable
     {
         _loggingService = loggingService;
         _ytDlpUpdateService = ytDlpUpdateService;
-        _pluginConfig = pluginConfig;
+        _config = pluginConfig;
     }
 
     public bool LibrariesAvailable()
@@ -43,8 +43,6 @@ internal abstract class YoutubeDLServiceBase : IInitializable
         // Check for config files in UserData and Lib paths
         var userDataConfigPath = Path.Combine(UnityGame.UserDataPath, "yt-dlp.conf");
         var libConfigPath = Path.Combine(TheaterFileHelpers.TheaterLibsPath, "yt-dlp.conf");
-        Plugin._log.Debug($"userDataConfigPath: {userDataConfigPath}");
-        Plugin._log.Debug($"libConfigPath: {libConfigPath}");
 
         if (File.Exists(userDataConfigPath))
         {
@@ -106,7 +104,7 @@ internal abstract class YoutubeDLServiceBase : IInitializable
     protected Process CreateProcess(string arguments, string? workingDirectory = null)
     {
         //Use config file in UserData or Lib instead of the global yt-dlp one, or let yt-dlp auto-resolve
-        arguments += GetConfigFileArgument(_pluginConfig.YtDlpAutoConfig);
+        arguments += GetConfigFileArgument(_config.YtDlpAutoConfig);
 
         var process = new Process
         {
