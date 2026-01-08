@@ -43,14 +43,12 @@ internal class DownloadService : YoutubeDLServiceBase
         "https://vimeo.com/"
     };
 
-    private readonly PluginConfig _config;
     private readonly TheaterCoroutineStarter _coroutineStarter;
     private readonly VideoLoader _videoLoader;
 
     public DownloadService(PluginConfig config, TheaterCoroutineStarter coroutineStarter, LoggingService loggingService,
-        VideoLoader videoLoader, YtDlpUpdateService ytDlpUpdateService) : base(loggingService, ytDlpUpdateService)
+        VideoLoader videoLoader, YtDlpUpdateService ytDlpUpdateService) : base(loggingService, ytDlpUpdateService, config)
     {
-        _config = config;
         _coroutineStarter = coroutineStarter;
         _videoLoader = videoLoader;
     }
@@ -150,7 +148,7 @@ internal class DownloadService : YoutubeDLServiceBase
         {
             _loggingService.Warn("yt-dlp could not find deno.exe - YouTube download may not work!");
         }
-        
+
         var buffer = _stderrBuffers.GetOrAdd(video, _ => new StringBuilder());
         buffer.AppendLine(eventArgs.Data);
     }

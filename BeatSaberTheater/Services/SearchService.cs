@@ -20,14 +20,12 @@ internal class SearchService : YoutubeDLServiceBase
     public event Action<YTResult>? SearchProgress;
     public event Action? SearchFinished;
 
-    private readonly PluginConfig _config;
     private readonly TheaterCoroutineStarter _coroutineStarter;
 
     public SearchService(PluginConfig config, TheaterCoroutineStarter coroutineStarter, LoggingService loggingService,
         YtDlpUpdateService ytDlpUpdateService)
-        : base(loggingService, ytDlpUpdateService)
+        : base(loggingService, ytDlpUpdateService, config)
     {
-        _config = config;
         _coroutineStarter = coroutineStarter;
     }
 

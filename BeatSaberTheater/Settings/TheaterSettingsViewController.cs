@@ -149,6 +149,13 @@ internal class TheaterSettingsViewController
         }
     }
 
+    [UIValue("ytdlp-auto-config")]
+    public bool YtDlpAutoConfig
+    {
+        get => _config.YtDlpAutoConfig;
+        set => _config.YtDlpAutoConfig = value;
+    }
+
     private void SetSettingsTexture()
     {
         // PlaybackController.Instance.VideoPlayer.SetStaticTexture(

@@ -53,3 +53,48 @@ After the song downloads, you will be given a menu to adjust the timing of the v
 This will allow you to sync them together and skip any non-music sections at the beginning of the video.
 Hitting the `Preview`button will play both the video and song from the beginning, with the Beat Saber song
 playing only in your right ear and the video audio playing in your left ear.
+
+## Advanced Configuration
+
+### Custom yt-dlp Parameters
+
+Theater uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) to download videos from YouTube and other sources. If you need to customize how yt-dlp behaves, you can provide a custom configuration file.
+
+#### Configuration Options
+
+Most Theater settings can be configured through the in-game settings menu. To access the settings:
+
+1. In Beat Saber, in the list of mods on the left of the main menu, select `Theater`
+2. The "General" tab contains timeout and yt-dlp auto-config settings
+3. The "Visuals" tab contains visual customization options
+
+The **yt-dlp Auto Config** toggle controls how Theater handles yt-dlp configuration files:
+
+* **Off (Default)**: Theater will search for a `yt-dlp.conf` file in the following locations (in order):
+  1. `BeatSaber/UserData/yt-dlp.conf` - User-specific configuration
+  2. `BeatSaber/Libs/Theater/yt-dlp.conf` - Global Theater configuration
+  
+  If found, Theater uses that configuration. If neither file exists, yt-dlp runs with `--ignore-config` to ignore system-wide configuration files.
+
+* **On**: Theater skips all configuration file searches and allows yt-dlp to automatically resolve configuration according to its own rules, including system-wide configuration files.
+
+#### Using a yt-dlp Configuration File
+
+You can create a `yt-dlp.conf` file in either the `UserData` or `Library/Theater` directory to customize yt-dlp behavior. Example:
+
+```conf
+# Proxy settings
+--proxy [PROXY URL]
+
+# Network settings
+--socket-timeout 30
+
+# Video quality preferences
+--format "bestvideo[height<=1080]+bestaudio/best"
+
+# Output format
+--prefer-ffmpeg
+```
+
+For a complete list of yt-dlp options, see the [yt-dlp documentation](https://github.com/yt-dlp/yt-dlp#general-options) and [yt-dlp configuration guide](https://github.com/yt-dlp/yt-dlp#configuration).
+

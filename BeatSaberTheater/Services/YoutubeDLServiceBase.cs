@@ -8,20 +8,21 @@ using Zenject;
 
 namespace BeatSaberTheater.Services;
 
-public abstract class YoutubeDLServiceBase : IInitializable
+internal abstract class YoutubeDLServiceBase : IInitializable
 {
     private readonly string _ffmpegFilepath = Path.Combine(UnityGame.LibraryPath, "ffmpeg.exe");
-    private readonly string _youtubeDLConfigFilepath = Path.Combine(UnityGame.UserDataPath, "youtube-dl.conf");
+    protected readonly PluginConfig _config;
 
     private bool? _librariesAvailable;
 
     protected readonly LoggingService _loggingService;
     protected readonly YtDlpUpdateService _ytDlpUpdateService;
 
-    public YoutubeDLServiceBase(LoggingService loggingService, YtDlpUpdateService ytDlpUpdateService)
+    public YoutubeDLServiceBase(LoggingService loggingService, YtDlpUpdateService ytDlpUpdateService, PluginConfig pluginConfig)
     {
         _loggingService = loggingService;
         _ytDlpUpdateService = ytDlpUpdateService;
+        _config = pluginConfig;
     }
 
     public bool LibrariesAvailable()
@@ -32,9 +33,29 @@ public abstract class YoutubeDLServiceBase : IInitializable
         return _librariesAvailable.Value;
     }
 
-    private static string GetConfigFileArgument(string path)
+    private static string GetConfigFileArgument(bool autoConfig)
     {
-        return !File.Exists(path) ? " --ignore-config" : $" --config-location \"{path}\"";
+        if (autoConfig)
+        {
+            return string.Empty; // Let yt-dlp find its own config files
+        }
+
+        // Check for config files in UserData and Lib paths
+        var userDataConfigPath = Path.Combine(UnityGame.UserDataPath, "yt-dlp.conf");
+        var libConfigPath = Path.Combine(TheaterFileHelpers.TheaterLibsPath, "yt-dlp.conf");
+
+        if (File.Exists(userDataConfigPath))
+        {
+            return $" --config-location \"{userDataConfigPath}\"";
+        }
+
+        if (File.Exists(libConfigPath))
+        {
+            return $" --config-location \"{libConfigPath}\"";
+        }
+
+        // No config files found, ignore config
+        return " --ignore-config";
     }
 
     protected void DisposeProcess(Process? process)
@@ -82,8 +103,8 @@ public abstract class YoutubeDLServiceBase : IInitializable
 
     protected Process CreateProcess(string arguments, string? workingDirectory = null)
     {
-        //Use config file in UserData instead of the global yt-dl one
-        arguments += GetConfigFileArgument(_youtubeDLConfigFilepath);
+        //Use config file in UserData or Lib instead of the global yt-dlp one, or let yt-dlp auto-resolve
+        arguments += GetConfigFileArgument(_config.YtDlpAutoConfig);
 
         var process = new Process
         {

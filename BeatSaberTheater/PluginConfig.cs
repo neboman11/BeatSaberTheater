@@ -25,4 +25,7 @@ internal class PluginConfig
     // Timeouts
     public virtual int DownloadTimeoutSeconds { get; set; } = 5 * 60;
     public virtual int SearchTimeoutSeconds { get; set; } = 45;
+
+    // yt-dlp Configuration
+    public virtual bool YtDlpAutoConfig { get; set; } = false;
 }

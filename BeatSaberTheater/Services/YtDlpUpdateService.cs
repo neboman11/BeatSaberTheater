@@ -19,10 +19,9 @@ public class YtDlpUpdateService : IInitializable
     private readonly LoggingService _loggingService;
 
     public string YtDlpPath => TheaterYtDlpPath;
-    public string DenoDlpPath => Path.Combine(TheaterLibsPath, "deno.exe");
+    public string DenoDlpPath => Path.Combine(TheaterFileHelpers.TheaterLibsPath, "deno.exe");
 
-    private string TheaterLibsPath => Path.Combine(UnityGame.LibraryPath, "Theater");
-    private string TheaterYtDlpPath => Path.Combine(TheaterLibsPath, "yt-dlp.exe");
+    private string TheaterYtDlpPath => Path.Combine(TheaterFileHelpers.TheaterLibsPath, "yt-dlp.exe");
 
     internal YtDlpUpdateService(PluginConfig config, LoggingService loggingService)
     {
@@ -39,7 +38,7 @@ public class YtDlpUpdateService : IInitializable
                 _loggingService.Info("No local yt-dlp.exe was found");
                 return null;
             }
-            
+
             return await Task.Run(() =>
             {
                 var process = new Process
@@ -91,7 +90,7 @@ public class YtDlpUpdateService : IInitializable
         _loggingService.Info("Checking if yt-dlp.exe needs to be updated");
         var current = await GetCurrentVersion();
         var latest = await GetLatestVersion();
-        
+
         _loggingService.Info($"Resolved yt-dlp versions: Current ({current}), latest ({latest})");
         if (latest == null)
         {
@@ -128,7 +127,7 @@ public class YtDlpUpdateService : IInitializable
         try
         {
             _loggingService.Info("Downloading latest yt-dlp.exe");
-            
+
             var request = UnityWebRequest.Get("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest");
             request.SetRequestHeader("User-Agent", "BeatSaberTheater");
             var operation = request.SendWebRequest();
@@ -173,7 +172,7 @@ public class YtDlpUpdateService : IInitializable
             _loggingService.Info("Downloaded latest yt-dlp.exe");
 
             // Copy ffmpeg.exe to Theater directory if it doesn't exist
-            string theaterFfmpegPath = Path.Combine(TheaterLibsPath, "ffmpeg.exe");
+            string theaterFfmpegPath = Path.Combine(TheaterFileHelpers.TheaterLibsPath, "ffmpeg.exe");
             if (!File.Exists(theaterFfmpegPath))
             {
                 string baseFfmpegPath = Path.Combine(UnityGame.LibraryPath, "ffmpeg.exe");
@@ -225,7 +224,7 @@ public class YtDlpUpdateService : IInitializable
     private async Task CheckAndDownloadDeno()
     {
         _loggingService.Info("Starting Deno update");
-        string denoPath = Path.Combine(TheaterLibsPath, "deno.exe");
+        string denoPath = Path.Combine(TheaterFileHelpers.TheaterLibsPath, "deno.exe");
         if (File.Exists(denoPath))
         {
             _loggingService.Info($"Deno is already present. Not updating. Found at location: {denoPath}");
@@ -285,7 +284,7 @@ public class YtDlpUpdateService : IInitializable
                 var denoEntry = archive.GetEntry("deno.exe");
                 if (denoEntry != null)
                 {
-                    if (!Directory.Exists(TheaterLibsPath)) Directory.CreateDirectory(TheaterLibsPath);
+                    if (!Directory.Exists(TheaterFileHelpers.TheaterLibsPath)) Directory.CreateDirectory(TheaterFileHelpers.TheaterLibsPath);
                     denoEntry.ExtractToFile(denoPath, true);
                     _loggingService.Info("Downloaded and extracted deno.exe");
                 }
