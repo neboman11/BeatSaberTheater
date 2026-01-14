@@ -609,17 +609,18 @@ public class VideoLoader(
                 return;
             }
 
-            // Build a map of song names to beatmap levels
-            var songNameToLevel = new Dictionary<string, BeatmapLevel>(StringComparer.OrdinalIgnoreCase);
+            // Build a map of song names to list of beatmap levels (for duplicates)
+            var songNameToLevels = new Dictionary<string, List<BeatmapLevel>>(StringComparer.OrdinalIgnoreCase);
             var levelIdToLevel = new Dictionary<string, BeatmapLevel>();
 
             // Add all official maps
             var officialMaps = GetOfficialMaps();
             foreach (var level in officialMaps)
             {
-                var songName = level.songName.Trim();
-                if (!songNameToLevel.ContainsKey(songName))
-                    songNameToLevel[songName] = level;
+                var songName = TheaterFileHelpers.ReplaceIllegalFilesystemChars(level.songName.Trim());
+                if (!songNameToLevels.ContainsKey(songName))
+                    songNameToLevels[songName] = new List<BeatmapLevel>();
+                songNameToLevels[songName].Add(level);
                 levelIdToLevel[level.levelID] = level;
             }
 
@@ -627,14 +628,16 @@ public class VideoLoader(
             foreach (var levelPair in Loader.CustomLevels)
             {
                 var level = levelPair.Value;
-                var songName = level.songName.Trim();
-                if (!songNameToLevel.ContainsKey(songName))
-                    songNameToLevel[songName] = level;
+                var songName = TheaterFileHelpers.ReplaceIllegalFilesystemChars(level.songName.Trim());
+                if (!songNameToLevels.ContainsKey(songName))
+                    songNameToLevels[songName] = new List<BeatmapLevel>();
+                songNameToLevels[songName].Add(level);
                 levelIdToLevel[level.levelID] = level;
             }
 
             // Process each folder in the non-legacy directory
             var ostDirs = Directory.GetDirectories(ostBasePath);
+            var foldersToDelete = new List<string>();
             foreach (var ostDir in ostDirs)
             {
                 try
@@ -659,31 +662,57 @@ public class VideoLoader(
                         continue;
                     }
 
-                    // Try to find matching level by song name
-                    if (!songNameToLevel.TryGetValue(currentFolderName, out var level))
+                    // Try to find matching levels by song name
+                    if (!songNameToLevels.TryGetValue(currentFolderName, out var levels))
                     {
                         _loggingService.Debug($"Could not find beatmap level for folder: {currentFolderName}");
                         continue;
                     }
 
-                    // Create new folder name with levelID
-                    var newFolderName = $"{TheaterFileHelpers.ReplaceIllegalFilesystemChars(level.songName.Trim())} - {level.levelID}";
-                    var newPath = Path.Combine(ostBasePath, newFolderName);
-
-                    // If new path already exists, skip
-                    if (Directory.Exists(newPath))
+                    // For each matching level, copy the folder to the new name
+                    bool copied = false;
+                    foreach (var level in levels)
                     {
-                        _loggingService.Debug($"New path already exists, skipping: {newFolderName}");
-                        continue;
+                        var newFolderName = $"{TheaterFileHelpers.ReplaceIllegalFilesystemChars(level.songName.Trim())} - {level.levelID}";
+                        var newPath = Path.Combine(ostBasePath, newFolderName);
+
+                        // If new path already exists, skip
+                        if (Directory.Exists(newPath))
+                        {
+                            _loggingService.Debug($"New path already exists, skipping: {newFolderName}");
+                            continue;
+                        }
+
+                        // Copy the directory
+                        DirectoryCopy(ostDir, newPath, true);
+                        _loggingService.Info($"Copied OST video folder from {currentFolderName} to {newFolderName}");
+                        copied = true;
                     }
 
-                    // Rename the directory
-                    Directory.Move(ostDir, newPath);
-                    _loggingService.Info($"Renamed OST video folder from {currentFolderName} to {newFolderName}");
+                    // If any copies were made, mark for deletion
+                    if (copied)
+                    {
+                        foldersToDelete.Add(ostDir);
+                    }
                 }
                 catch (Exception e)
                 {
                     _loggingService.Warn($"Failed to migrate OST folder {ostDir}:");
+                    _loggingService.Warn(e);
+                }
+            }
+
+            // Clean up old folders
+            foreach (var folder in foldersToDelete)
+            {
+                try
+                {
+                    Directory.Delete(folder, true);
+                    _loggingService.Info($"Deleted old folder: {Path.GetFileName(folder)}");
+                }
+                catch (Exception e)
+                {
+                    _loggingService.Warn($"Failed to delete old folder {folder}:");
                     _loggingService.Warn(e);
                 }
             }
@@ -694,6 +723,44 @@ public class VideoLoader(
         {
             _loggingService.Error("Error during OST video migration:");
             _loggingService.Error(e);
+        }
+    }
+
+    private static void DirectoryCopy(string sourceDirName, string destDirName, bool copySubDirs)
+    {
+        // Get the subdirectories for the specified directory.
+        DirectoryInfo dir = new DirectoryInfo(sourceDirName);
+
+        if (!dir.Exists)
+        {
+            throw new DirectoryNotFoundException(
+                "Source directory does not exist or could not be found: "
+                + sourceDirName);
+        }
+
+        DirectoryInfo[] dirs = dir.GetDirectories();
+        // If the destination directory doesn't exist, create it.
+        if (!Directory.Exists(destDirName))
+        {
+            Directory.CreateDirectory(destDirName);
+        }
+
+        // Get the files in the directory and copy them to the new location.
+        FileInfo[] files = dir.GetFiles();
+        foreach (FileInfo file in files)
+        {
+            string temppath = Path.Combine(destDirName, file.Name);
+            file.CopyTo(temppath, false);
+        }
+
+        // If copying subdirectories, copy them and their contents to new location.
+        if (copySubDirs)
+        {
+            foreach (DirectoryInfo subdir in dirs)
+            {
+                string temppath = Path.Combine(destDirName, subdir.Name);
+                DirectoryCopy(subdir.FullName, temppath, copySubDirs);
+            }
         }
     }
 
