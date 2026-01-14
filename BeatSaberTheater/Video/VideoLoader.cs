@@ -13,7 +13,6 @@ using BeatmapEditor3D.DataModels;
 using BeatSaberTheater.Download;
 using BeatSaberTheater.Util;
 using BeatSaberTheater.Video.Config;
-using BS_Utils.Utilities;
 using IPA.Utilities;
 using IPA.Utilities.Async;
 using Newtonsoft.Json;
@@ -704,7 +703,7 @@ public class VideoLoader(
         await RenameSongFolders();
     }
 
-    private void OnMenuLoadedFresh(ScenesTransitionSetupDataSO scenesTransition)
+    private void OnSongsLoaded(Loader _, ConcurrentDictionary<string, BeatmapLevel> __)
     {
         Task.Run(async () =>
         {
@@ -734,13 +733,13 @@ public class VideoLoader(
         var configs = LoadBundledConfigs().Result;
         foreach (var config in configs) BundledConfigs.TryAdd(config.levelID, config.config);
 
-        // Subscribe to menu loaded event to run migration when systems are ready
-        BSEvents.lateMenuSceneLoadedFresh += OnMenuLoadedFresh;
+        // Subscribe to songs loaded event to run migration when levels are available
+        Loader.SongsLoadedEvent += OnSongsLoaded;
     }
 
     public void Dispose()
     {
-        BSEvents.lateMenuSceneLoadedFresh -= OnMenuLoadedFresh;
+        Loader.SongsLoadedEvent -= OnSongsLoaded;
     }
 }
 
