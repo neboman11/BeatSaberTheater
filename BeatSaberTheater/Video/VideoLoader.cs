@@ -22,7 +22,8 @@ using Zenject;
 
 namespace BeatSaberTheater.Video;
 
-public class VideoLoader(
+internal class VideoLoader(
+    PluginConfig _config,
     TheaterCoroutineStarter _coroutineStarter,
     LoggingService _loggingService,
     CustomLevelLoader _customLevelLoader)
@@ -355,7 +356,7 @@ public class VideoLoader(
         }
 
         if (InstalledMods.BeatSaberPlaylistsLib && videoConfig == null &&
-            level.TryGetPlaylistLevelConfig(levelPath, out var playlistConfig)) videoConfig = playlistConfig;
+            level.TryGetPlaylistLevelConfig(levelPath, _config.Format, out var playlistConfig)) videoConfig = playlistConfig;
 
         return videoConfig ?? GetConfigFromBundledConfigs(level);
     }
@@ -502,7 +503,7 @@ public class VideoLoader(
         if (videoConfig != null)
         {
             videoConfig.LevelDir = Path.GetDirectoryName(configPath);
-            videoConfig.UpdateDownloadState();
+            videoConfig.UpdateDownloadState(_config.Format);
         }
         else
         {

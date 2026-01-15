@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using BeatSaberTheater.Download;
 using BeatSaberTheater.Models;
+using BeatSaberTheater.Settings;
 using BeatSaberTheater.Util;
 using Newtonsoft.Json;
 using SongCore.Data;
@@ -46,13 +48,15 @@ public class VideoConfig
     public EnvironmentModification[]? environment;
     public Vignette? vignette;
 
-    [JsonIgnore] [NonSerialized] public float DownloadProgress;
-    [JsonIgnore] [NonSerialized] public float? ConvertingProgress;
-    [JsonIgnore] [NonSerialized] public DownloadState DownloadState;
-    [JsonIgnore] [NonSerialized] public string? ErrorMessage;
-    [JsonIgnore] [NonSerialized] public string? LevelDir;
-    [JsonIgnore] [NonSerialized] public bool NeedsToSave;
-    [JsonIgnore] [NonSerialized] public bool PlaybackDisabledByMissingSuggestion;
+    [JsonIgnore][NonSerialized] public float DownloadProgress;
+    [JsonIgnore][NonSerialized] public float? ConvertingProgress;
+    [JsonIgnore][NonSerialized] public DownloadState DownloadState;
+    [JsonIgnore][NonSerialized] public string? ErrorMessage;
+    [JsonIgnore][NonSerialized] public string? LevelDir;
+    [JsonIgnore][NonSerialized] public bool NeedsToSave;
+    [JsonIgnore][NonSerialized] public bool PlaybackDisabledByMissingSuggestion;
+
+    [JsonProperty("downloadedFormats")] public Dictionary<VideoFormats.Format, string> DownloadedFormats { get; set; } = new();
 
     [JsonIgnore] public string? ConfigPath => LevelDir != null ? VideoLoader.GetConfigPath(LevelDir) : null;
 
@@ -146,11 +150,23 @@ public class VideoConfig
         return offset / 1000f;
     }
 
-    public DownloadState UpdateDownloadState()
+    public DownloadState UpdateDownloadState(VideoFormats.Format currentFormat)
     {
-        return DownloadState = VideoPath != null && (videoID != null || videoUrl != null) && File.Exists(VideoPath)
-            ? DownloadState.Downloaded
-            : DownloadState.NotDownloaded;
+        foreach (VideoFormats.Format format in Enum.GetValues(typeof(VideoFormats.Format)))
+        {
+            string extension = "." + format.ToString().ToLower();
+            var path = GetVideoPathWithExtension(extension);
+            if (path != null && (videoID != null || videoUrl != null) && File.Exists(path))
+            {
+                DownloadedFormats[format] = path;
+            }
+            else
+            {
+                DownloadedFormats.Remove(format);
+            }
+        }
+
+        return DownloadState = DownloadedFormats.ContainsKey(currentFormat) ? DownloadState.Downloaded : DownloadState.NotDownloaded;
     }
 
     private string GetVideoFileName(string levelPath)
@@ -164,5 +180,74 @@ public class VideoConfig
         }
 
         return fileName;
+    }
+
+    public string? GetVideoPathForFormat(VideoFormats.Format format)
+    {
+        if (DownloadedFormats.TryGetValue(format, out var path))
+        {
+            return path;
+        }
+
+        // Fallback: check if VideoPath has the correct extension
+        string extension = "." + format.ToString().ToLower();
+        var fallbackPath = VideoPath;
+        if (fallbackPath != null && Path.GetExtension(fallbackPath).ToLower() == extension.ToLower())
+        {
+            return fallbackPath;
+        }
+
+        return null;
+    }
+
+    private string? GetVideoPathWithExtension(string extension)
+    {
+        if (LevelDir != null)
+        {
+            var path = Directory.GetParent(LevelDir)!.FullName;
+            var mapFolderName = new DirectoryInfo(LevelDir).Name;
+            var folder = Path.Combine(path, mapFolderName);
+            var fileName = videoFile ?? TheaterFileHelpers.ReplaceIllegalFilesystemChars(title ?? videoID ?? "video");
+            fileName = TheaterFileHelpers.ShortenFilename(folder, fileName);
+
+            if (!Path.HasExtension(fileName))
+            {
+                fileName += extension;
+            }
+            else
+            {
+                fileName = Path.ChangeExtension(fileName, extension);
+            }
+
+            path = Path.Combine(folder, fileName);
+            return path;
+        }
+
+        if (LevelDir != null)
+        {
+            try
+            {
+                var fileName = videoFile ?? TheaterFileHelpers.ReplaceIllegalFilesystemChars(title ?? videoID ?? "video");
+                fileName = TheaterFileHelpers.ShortenFilename(LevelDir, fileName);
+
+                if (!Path.HasExtension(fileName))
+                {
+                    fileName += extension;
+                }
+                else
+                {
+                    fileName = Path.ChangeExtension(fileName, extension);
+                }
+
+                return Path.Combine(LevelDir, fileName);
+            }
+            catch (Exception e)
+            {
+                Plugin._log.Error($"Failed to combine video path for {videoFile}: {e.Message}");
+                return null;
+            }
+        }
+
+        return null;
     }
 }

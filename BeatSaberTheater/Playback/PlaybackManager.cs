@@ -712,7 +712,7 @@ public class PlaybackManager : MonoBehaviour
         StopPlayback();
         if (_videoConfig == null) return;
 
-        _videoConfig.UpdateDownloadState();
+        _videoConfig.UpdateDownloadState(_config.Format);
         _videoConfig.ErrorMessage = "Theater playback error.";
         if (message.Contains("Unexpected error code (10)") && SystemInfo.graphicsDeviceVendor == "NVIDIA")
             _videoConfig.ErrorMessage += " Try disabling NVIDIA Fast Sync.";
@@ -762,7 +762,13 @@ public class PlaybackManager : MonoBehaviour
             yield break;
         }
 
-        var videoPath = video.VideoPath;
+        var videoPath = video.GetVideoPathForFormat(_config.Format);
+        if (videoPath == null)
+        {
+            _loggingService.Debug("Video file with desired format not found, stopping prepare");
+            _videoPlayer.FadeOut();
+            yield break;
+        }
         _loggingService.Info($"Loading video: {videoPath}");
 
         if (video.videoFile != null)
