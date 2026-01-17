@@ -265,14 +265,14 @@ internal class DownloadService : YoutubeDLServiceBase
     private IEnumerator WaitForDownloadToFinishCoroutine(VideoConfig video)
     {
         var timeout = new DownloadTimeout(3);
-        yield return new WaitUntil(() => timeout.HasTimedOut || File.Exists(video.VideoPath));
+        yield return new WaitUntil(() => timeout.HasTimedOut || video.DownloadedFormats.Count > 0);
 
         DownloadFinished?.Invoke(video);
     }
 
     private Process? CreateDownloadProcess(VideoConfig video, VideoQuality.Mode quality, VideoFormats.Format format)
     {
-        if (video.LevelDir == null || video.VideoPath == null)
+        if (video.LevelDir == null)
         {
             _loggingService.Error("LevelDir was null during download");
             return null;
@@ -285,16 +285,24 @@ internal class DownloadService : YoutubeDLServiceBase
             return null;
         }
 
-        var path = Path.GetDirectoryName(video.VideoPath);
-        if (video.VideoPath != null && path != null && !Directory.Exists(path))
+        // Clear any existing downloaded formats to prevent stale data from previous songs
+        // This ensures each download starts with a clean slate
+        video.DownloadedFormats.Clear();
+
+        // Determine the base output directory
+        var path = Directory.GetParent(video.LevelDir)!.FullName;
+        var mapFolderName = new DirectoryInfo(video.LevelDir).Name;
+        var folder = Path.Combine(path, mapFolderName);
+
+        if (!Directory.Exists(folder))
         {
-            _loggingService.Debug("Creating folder: " + path);
+            _loggingService.Debug("Creating folder: " + folder);
             //Needed for OST/WIP videos
-            Directory.CreateDirectory(path);
+            Directory.CreateDirectory(folder);
         }
         else
         {
-            _loggingService.Debug("Folder already exists: " + path);
+            _loggingService.Debug("Folder already exists: " + folder);
         }
 
         string videoUrl;
@@ -322,7 +330,17 @@ internal class DownloadService : YoutubeDLServiceBase
 
         var videoFormat = VideoQuality.ToYoutubeDLFormat(video, quality);
         videoFormat = videoFormat.Length > 0 ? $" -f \"{videoFormat}\"" : "";
-        var outputPath = video.VideoPath;
+
+        // Generate the base filename
+        var baseFileName = TheaterFileHelpers.ReplaceIllegalFilesystemChars(video.title ?? video.videoID ?? "video");
+        baseFileName = TheaterFileHelpers.ShortenFilename(folder, baseFileName);
+
+        if (!Path.HasExtension(baseFileName))
+        {
+            baseFileName += ".mp4";
+        }
+
+        var outputPath = Path.Combine(folder, baseFileName);
 
         var downloadProcessArguments = videoUrl +
                                        videoFormat +
@@ -334,14 +352,18 @@ internal class DownloadService : YoutubeDLServiceBase
                                        " --socket-timeout 10" + //Retry if no response in 10 seconds Note: Not if download takes more than 10 seconds but if the time between any 2 messages from the server is 10 seconds
                                        $" --js-runtimes deno:\"{_ytDlpUpdateService.DenoDlpPath}\"";
 
-        if (format == VideoFormats.Format.Webm)
+        switch (format)
         {
-            downloadProcessArguments += $" --exec \"{Path.Combine(UnityGame.LibraryPath, "ffmpeg.exe")} -i %(filepath,_filename|)q -progress pipe:1 -c:v libvpx -crf 10 -b:v 4M -quality realtime -cpu-used 8 -c:a libvorbis \\\"{Path.GetFileNameWithoutExtension(video.VideoPath)}.webm\\\"\"";
-            video.videoFile = Path.GetFileNameWithoutExtension(video.videoFile) + ".webm";
-        }
-        else
-        {
-            downloadProcessArguments += " --recode-video mp4"; //Re-encode to mp4 (will be skipped most of the time, since it's already in an mp4 container)
+            case VideoFormats.Format.Webm:
+                var webmFileName = Path.GetFileNameWithoutExtension(baseFileName) + ".webm";
+                var webmPath = Path.Combine(folder, webmFileName);
+                downloadProcessArguments += $" --exec \"{Path.Combine(UnityGame.LibraryPath, "ffmpeg.exe")} -i %(filepath,_filename|)q -progress pipe:1 -c:v libvpx -crf 10 -b:v 4M -quality realtime -cpu-used 8 -c:a libvorbis \\\"{webmFileName}\\\"\"";
+                video.DownloadedFormats[VideoFormats.Format.Webm] = webmPath;
+                break;
+            case VideoFormats.Format.Mp4:
+                downloadProcessArguments += " --recode-video mp4"; //Re-encode to mp4 (will be skipped most of the time, since it's already in an mp4 container)
+                video.DownloadedFormats[VideoFormats.Format.Mp4] = outputPath;
+                break;
         }
 
         var process = CreateProcess(downloadProcessArguments, video.LevelDir);

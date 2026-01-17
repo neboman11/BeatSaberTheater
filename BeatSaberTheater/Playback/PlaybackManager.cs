@@ -263,7 +263,8 @@ public class PlaybackManager : MonoBehaviour
 
         if (_videoConfig == null || !_videoConfig.IsPlayable)
         {
-            _loggingService.Info("No video configured or video is not playable: " + _videoConfig?.VideoPath);
+            var videoPath = _videoConfig?.GetVideoPathForFormat(_config.Format);
+            _loggingService.Info("No video configured or video is not playable: " + videoPath);
 
             if (_config.CoverEnabled && (_videoConfig?.forceEnvironmentModifications == null ||
                                          _videoConfig.forceEnvironmentModifications == false))
@@ -300,7 +301,7 @@ public class PlaybackManager : MonoBehaviour
 
     private void OnConfigChanged(VideoConfig? config, bool? reloadVideo)
     {
-        var previousVideoPath = _videoConfig?.VideoPath;
+        var previousVideoPath = _videoConfig?.GetVideoPathForFormat(_config.Format);
         _videoConfig = config;
 
         if (config == null)
@@ -322,7 +323,8 @@ public class PlaybackManager : MonoBehaviour
             ResyncVideo();
         }
 
-        if (previousVideoPath != config.VideoPath || reloadVideo == true)
+        var currentVideoPath = config.GetVideoPathForFormat(_config.Format);
+        if (previousVideoPath != currentVideoPath || reloadVideo == true)
         {
             _videoPlayer.AddPrepareCompletedEventHandler(ConfigChangedPrepareHandler);
             PrepareVideo(config);
@@ -756,12 +758,6 @@ public class PlaybackManager : MonoBehaviour
         _videoPlayer.SetScreenShaderParameters(video);
         _videoPlayer.SetBloomIntensity(video.bloom);
 
-        if (video.VideoPath == null)
-        {
-            _loggingService.Debug("Video path was null, stopping prepare");
-            yield break;
-        }
-
         var videoPath = video.GetVideoPathForFormat(_config.Format);
         if (videoPath == null)
         {
@@ -771,18 +767,15 @@ public class PlaybackManager : MonoBehaviour
         }
         _loggingService.Info($"Loading video: {videoPath}");
 
-        if (video.videoFile != null)
-        {
-            var videoFileInfo = new FileInfo(videoPath);
-            var timeout = new DownloadTimeout(0.25f);
-            if (_videoPlayer.Url != videoPath)
-                yield return new WaitUntil(() =>
-                    !TheaterFileHelpers.IsFileLocked(videoFileInfo) || timeout.HasTimedOut);
+        var videoFileInfo = new FileInfo(videoPath);
+        var timeout = new DownloadTimeout(0.25f);
+        if (_videoPlayer.Url != videoPath)
+            yield return new WaitUntil(() =>
+                !TheaterFileHelpers.IsFileLocked(videoFileInfo) || timeout.HasTimedOut);
 
-            timeout.Stop();
-            if (timeout.HasTimedOut && TheaterFileHelpers.IsFileLocked(videoFileInfo))
-                _loggingService.Warn("Video file locked: " + videoPath);
-        }
+        timeout.Stop();
+        if (timeout.HasTimedOut && TheaterFileHelpers.IsFileLocked(videoFileInfo))
+            _loggingService.Warn("Video file locked: " + videoPath);
 
         _videoPlayer.Url = videoPath;
         _videoPlayer.Prepare();

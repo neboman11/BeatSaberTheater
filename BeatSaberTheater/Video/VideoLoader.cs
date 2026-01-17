@@ -431,24 +431,31 @@ internal class VideoLoader(
 
     public void DeleteVideo(VideoConfig videoConfig)
     {
-        if (videoConfig.VideoPath == null)
-        {
-            _loggingService.Warn("Tried to delete video, but its path was null");
-            return;
-        }
-
         try
         {
-            File.Delete(videoConfig.VideoPath);
-            _loggingService.Info("Deleted video at " + videoConfig.VideoPath);
+            // Delete all downloaded video files
+            foreach (var kvp in videoConfig.DownloadedFormats)
+            {
+                if (File.Exists(kvp.Value))
+                {
+                    File.Delete(kvp.Value);
+                    _loggingService.Info("Deleted video at " + kvp.Value);
+                }
+            }
+
+            // Clear the DownloadedFormats dictionary
+            videoConfig.DownloadedFormats.Clear();
+
+            // Update download state
             if (videoConfig.DownloadState != DownloadState.Cancelled)
                 videoConfig.DownloadState = DownloadState.NotDownloaded;
 
+            // Clear the legacy videoFile property
             videoConfig.videoFile = null;
         }
         catch (Exception e)
         {
-            _loggingService.Error("Failed to delete video at " + videoConfig.VideoPath);
+            _loggingService.Error("Failed to delete video files");
             _loggingService.Error(e);
         }
     }
@@ -503,6 +510,11 @@ internal class VideoLoader(
         if (videoConfig != null)
         {
             videoConfig.LevelDir = Path.GetDirectoryName(configPath);
+
+            // Clear DownloadedFormats before updating to ensure we don't have stale data
+            // from previous loads or different songs
+            videoConfig.DownloadedFormats.Clear();
+
             videoConfig.UpdateDownloadState(_config.Format);
         }
         else
