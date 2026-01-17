@@ -510,11 +510,7 @@ internal class VideoLoader(
         if (videoConfig != null)
         {
             videoConfig.LevelDir = Path.GetDirectoryName(configPath);
-
-            // Clear DownloadedFormats before updating to ensure we don't have stale data
-            // from previous loads or different songs
-            videoConfig.DownloadedFormats.Clear();
-
+            // Update download state with the current format from config
             videoConfig.UpdateDownloadState(_config.Format);
         }
         else

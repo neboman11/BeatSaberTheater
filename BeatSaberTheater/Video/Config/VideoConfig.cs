@@ -96,45 +96,7 @@ public class VideoConfig
                                        (transparency != null && !transparency.Value);
 
     [JsonIgnore]
-    public string? VideoPath
-    {
-        get
-        {
-            // First try to get the path from DownloadedFormats for the current format
-            if (LevelDir != null)
-            {
-                // Try to get the default format path from DownloadedFormats
-                var defaultFormatPath = GetVideoPathForFormat(VideoFormats.Format.Mp4);
-                if (defaultFormatPath != null)
-                {
-                    return defaultFormatPath;
-                }
-
-                // Fallback to legacy behavior if DownloadedFormats is empty
-                var path = Directory.GetParent(LevelDir)!.FullName;
-                var mapFolderName = new DirectoryInfo(LevelDir).Name;
-                var folder = Path.Combine(path, mapFolderName);
-                videoFile = GetVideoFileName(folder);
-                path = Path.Combine(folder, videoFile);
-                return path;
-            }
-
-            if (LevelDir != null)
-                try
-                {
-                    videoFile = GetVideoFileName(LevelDir);
-                    return Path.Combine(LevelDir, videoFile);
-                }
-                catch (Exception e)
-                {
-                    Plugin._log.Error($"Failed to combine video path for {videoFile}: {e.Message}");
-                    return null;
-                }
-
-            Plugin._log.Debug("VideoPath is null");
-            return null;
-        }
-    }
+    public string? VideoPath => GetVideoPathForFormat(VideoFormats.Format.Mp4);
 
     public VideoConfig()
     {
@@ -151,7 +113,6 @@ public class VideoConfig
         duration = searchResult.Duration;
 
         LevelDir = levelPath;
-        videoFile = GetVideoFileName(levelPath);
 
         // Ensure DownloadedFormats is initialized as a new instance
         DownloadedFormats = new Dictionary<VideoFormats.Format, string>();
@@ -164,8 +125,7 @@ public class VideoConfig
 
     public DownloadState UpdateDownloadState(VideoFormats.Format currentFormat)
     {
-        // First, validate existing entries in DownloadedFormats
-        // Remove any entries where the file doesn't exist
+        // Remove any invalid entries from DownloadedFormats
         var invalidFormats = DownloadedFormats
             .Where(kvp => !File.Exists(kvp.Value))
             .Select(kvp => kvp.Key)
@@ -176,137 +136,73 @@ public class VideoConfig
             DownloadedFormats.Remove(format);
         }
 
-        // Now try to find the current format
-        bool hasValidFormat = false;
-
-        // Check if current format is already in DownloadedFormats and valid
-        if (DownloadedFormats.TryGetValue(currentFormat, out var currentPath) && File.Exists(currentPath))
+        // Try to discover video files that exist but aren't in DownloadedFormats yet
+        if (LevelDir != null && (videoID != null || videoUrl != null || videoFile != null))
         {
-            hasValidFormat = true;
-            videoFile = Path.GetFileName(currentPath);
-        }
-        else
-        {
-            // Try to discover the file using consistent naming logic
-            if (LevelDir != null)
+            foreach (VideoFormats.Format format in Enum.GetValues(typeof(VideoFormats.Format)))
             {
-                var folder = Path.Combine(Directory.GetParent(LevelDir)!.FullName, new DirectoryInfo(LevelDir).Name);
-                var baseFileName = GetExpectedFileName(folder);
+                // Skip if we already have a valid entry for this format
+                if (DownloadedFormats.ContainsKey(format) && File.Exists(DownloadedFormats[format]))
+                    continue;
 
-                if (!Path.HasExtension(baseFileName))
+                // Try to find the video file with the expected naming
+                var videoPath = BuildVideoPath(format);
+                if (videoPath != null && File.Exists(videoPath))
                 {
-                    baseFileName += ".mp4";
-                }
-
-                var expectedPath = Path.Combine(folder, baseFileName);
-                if (File.Exists(expectedPath))
-                {
-                    DownloadedFormats[currentFormat] = expectedPath;
-                    videoFile = Path.GetFileName(expectedPath);
-                    hasValidFormat = true;
+                    DownloadedFormats[format] = videoPath;
                 }
             }
         }
 
-        // Discover other formats but don't override existing valid entries
-        foreach (VideoFormats.Format format in Enum.GetValues(typeof(VideoFormats.Format)))
-        {
-            if (format == currentFormat) continue;
+        // Check if the current format is available
+        var hasCurrentFormat = DownloadedFormats.ContainsKey(currentFormat) && File.Exists(DownloadedFormats[currentFormat]);
 
-            // Skip if we already have a valid entry for this format
-            if (DownloadedFormats.TryGetValue(format, out var existingPath) && File.Exists(existingPath))
-                continue;
-
-            string extension = "." + format.ToString().ToLower();
-            var path = GetVideoPathWithExtension(extension);
-            if (path != null && (videoID != null || videoUrl != null) && File.Exists(path))
-            {
-                DownloadedFormats[format] = path;
-            }
-        }
-
-        return DownloadState = hasValidFormat ? DownloadState.Downloaded : DownloadState.NotDownloaded;
-    }
-
-    private string GetExpectedFileName(string folderPath)
-    {
-        // Clean the title by removing any existing file extensions to prevent
-        // issues like "video.webm" becoming "video.webm.mp4"
-        var cleanTitle = Path.GetFileNameWithoutExtension(title ?? videoID ?? "video");
-
-        var baseFileName = TheaterFileHelpers.ReplaceIllegalFilesystemChars(cleanTitle);
-        baseFileName = TheaterFileHelpers.ShortenFilename(folderPath, baseFileName);
-
-        // Always add .mp4 extension as the default
-        baseFileName += ".mp4";
-
-        return baseFileName;
-    }
-
-    private string GetVideoFileName(string levelPath)
-    {
-        var fileName = videoFile ?? TheaterFileHelpers.ReplaceIllegalFilesystemChars(title ?? videoID ?? "video");
-        fileName = TheaterFileHelpers.ShortenFilename(levelPath, fileName);
-
-        if (!Path.HasExtension(fileName))
-        {
-            fileName += ".mp4";
-        }
-
-        return fileName;
+        return DownloadState = hasCurrentFormat ? DownloadState.Downloaded : DownloadState.NotDownloaded;
     }
 
     public string? GetVideoPathForFormat(VideoFormats.Format format)
     {
-        if (DownloadedFormats.TryGetValue(format, out var path))
+        // First, check if we have this format in DownloadedFormats
+        if (DownloadedFormats.TryGetValue(format, out var path) && File.Exists(path))
         {
             return path;
         }
 
-        // Fallback: check if VideoPath has the correct extension
-        string extension = "." + format.ToString().ToLower();
-        var fallbackPath = VideoPath;
-        if (fallbackPath != null && Path.GetExtension(fallbackPath).ToLower() == extension.ToLower())
+        // Fallback to legacy videoFile property if it matches the format
+        if (videoFile != null && LevelDir != null)
         {
-            return fallbackPath;
+            var legacyPath = BuildVideoPath(format);
+            if (legacyPath != null && File.Exists(legacyPath))
+            {
+                // Add it to DownloadedFormats for future use
+                DownloadedFormats[format] = legacyPath;
+                return legacyPath;
+            }
         }
 
         return null;
     }
 
-    private string? GetVideoPathWithExtension(string extension)
+    private string? BuildVideoPath(VideoFormats.Format format)
     {
-        if (LevelDir != null)
-        {
-            var path = Directory.GetParent(LevelDir)!.FullName;
-            var mapFolderName = new DirectoryInfo(LevelDir).Name;
-            var folder = Path.Combine(path, mapFolderName);
+        if (LevelDir == null) return null;
 
-            // Use consistent filename generation
-            var fileName = GetExpectedFileName(folder);
+        // Determine the base filename
+        // Generate filename from title or videoID
+        string baseFileName = TheaterFileHelpers.ReplaceIllegalFilesystemChars(title ?? videoID ?? "video");
 
-            // Change extension to the requested one
-            fileName = Path.ChangeExtension(fileName, extension.TrimStart('.'));
+        // Get the folder path
+        var path = Directory.GetParent(LevelDir)!.FullName;
+        var mapFolderName = new DirectoryInfo(LevelDir).Name;
+        var folder = Path.Combine(path, mapFolderName);
 
-            path = Path.Combine(folder, fileName);
-            return path;
-        }
+        // Shorten filename if needed
+        baseFileName = TheaterFileHelpers.ShortenFilename(folder, baseFileName);
 
-        if (LevelDir != null)
-        {
-            try
-            {
-                var fileName = GetExpectedFileName(LevelDir);
-                fileName = Path.ChangeExtension(fileName, extension.TrimStart('.'));
-                return Path.Combine(LevelDir, fileName);
-            }
-            catch (Exception e)
-            {
-                Plugin._log.Error($"Failed to combine video path: {e.Message}");
-                return null;
-            }
-        }
+        // Add the appropriate extension for the format
+        var extension = "." + format.ToString().ToLower();
+        var fileName = baseFileName + extension;
 
-        return null;
+        return Path.Combine(folder, fileName);
     }
 }
