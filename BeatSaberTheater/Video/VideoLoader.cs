@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BeatmapEditor3D.DataModels;
 using BeatSaberTheater.Download;
+using BeatSaberTheater.Settings;
 using BeatSaberTheater.Util;
 using BeatSaberTheater.Video.Config;
 using IPA.Utilities;
@@ -429,33 +430,42 @@ internal class VideoLoader(
             _loggingService.Debug("Config save successful");
     }
 
-    public void DeleteVideo(VideoConfig videoConfig)
+    public void DeleteVideo(VideoConfig videoConfig, VideoFormats.Format format)
     {
         try
         {
-            // Delete all downloaded video files
-            foreach (var kvp in videoConfig.DownloadedFormats)
+            // Delete only the specified format's video file
+            if (videoConfig.DownloadedFormats.TryGetValue(format, out var filePath))
             {
-                if (File.Exists(kvp.Value))
+                if (File.Exists(filePath))
                 {
-                    File.Delete(kvp.Value);
-                    _loggingService.Info("Deleted video at " + kvp.Value);
+                    File.Delete(filePath);
+                    _loggingService.Info($"Deleted {format} video at " + filePath);
                 }
+
+                // Remove the format from the dictionary
+                videoConfig.DownloadedFormats.Remove(format);
             }
 
-            // Clear the DownloadedFormats dictionary
-            videoConfig.DownloadedFormats.Clear();
+            // Update download state based on remaining formats
+            if (videoConfig.DownloadedFormats.Count == 0)
+            {
+                // No formats left
+                if (videoConfig.DownloadState != DownloadState.Cancelled)
+                    videoConfig.DownloadState = DownloadState.NotDownloaded;
 
-            // Update download state
-            if (videoConfig.DownloadState != DownloadState.Cancelled)
-                videoConfig.DownloadState = DownloadState.NotDownloaded;
-
-            // Clear the legacy videoFile property
-            videoConfig.videoFile = null;
+                // Clear the legacy videoFile property only if all formats are deleted
+                videoConfig.videoFile = null;
+            }
+            else
+            {
+                // Still have other formats, update state for current format
+                videoConfig.UpdateDownloadState(_config.Format);
+            }
         }
         catch (Exception e)
         {
-            _loggingService.Error("Failed to delete video files");
+            _loggingService.Error($"Failed to delete {format} video file");
             _loggingService.Error(e);
         }
     }

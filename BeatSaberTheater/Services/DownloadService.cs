@@ -120,7 +120,10 @@ internal class DownloadService : YoutubeDLServiceBase
 
             video.DownloadState = DownloadState.NotDownloaded;
             video.ErrorMessage = "Download timed out.";
-            _videoLoader.DeleteVideo(video);
+
+            // Delete the format that was being downloaded
+            var timedOutFormat = _downloadFormats.TryGetValue(video, out var fmt) ? fmt : VideoFormats.Format.Mp4;
+            _videoLoader.DeleteVideo(video, timedOutFormat);
 
             DownloadFinished?.Invoke(video);
             DisposeProcess(downloadProcess);
@@ -175,13 +178,19 @@ internal class DownloadService : YoutubeDLServiceBase
             video.DownloadState = DownloadState.NotDownloaded;
             video.ErrorMessage = ShortenErrorMessage(stderr);
 
-            _videoLoader.DeleteVideo(video);
+            // Delete the format that failed to download
+            var failedFormat = _downloadFormats.TryGetValue(video, out var fmt) ? fmt : VideoFormats.Format.Mp4;
+            _downloadFormats.TryRemove(video, out _);
+            _videoLoader.DeleteVideo(video, failedFormat);
             DownloadFinished?.Invoke(video);
         }
         else if (video.DownloadState == DownloadState.Cancelled)
         {
             _loggingService.Info("Cancelled download");
-            _videoLoader.DeleteVideo(video);
+            // Delete the format that was being cancelled
+            var cancelledFormat = _downloadFormats.TryGetValue(video, out var fmt) ? fmt : VideoFormats.Format.Mp4;
+            _downloadFormats.TryRemove(video, out _);
+            _videoLoader.DeleteVideo(video, cancelledFormat);
             DownloadFinished?.Invoke(video);
         }
         else
@@ -411,8 +420,10 @@ internal class DownloadService : YoutubeDLServiceBase
         var success = _downloadProcesses.TryGetValue(video, out var process);
         if (success) DisposeProcess(process);
 
+        // Delete the format that was being downloaded
+        var cancelFormat = _downloadFormats.TryGetValue(video, out var fmt) ? fmt : VideoFormats.Format.Mp4;
         _downloadFormats.TryRemove(video, out var _);
-        _videoLoader.DeleteVideo(video);
+        _videoLoader.DeleteVideo(video, cancelFormat);
     }
 
     private bool UrlInWhitelist(string url)
