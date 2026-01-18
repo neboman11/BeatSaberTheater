@@ -125,6 +125,12 @@ public class VideoConfig
 
     public DownloadState UpdateDownloadState(VideoFormats.Format currentFormat)
     {
+        // Don't update the state if a download/conversion is in progress
+        if (IsDownloading || DownloadState == DownloadState.Converting)
+        {
+            return DownloadState;
+        }
+
         // Remove any invalid entries from DownloadedFormats
         var invalidFormats = DownloadedFormats
             .Where(kvp => !File.Exists(kvp.Value))

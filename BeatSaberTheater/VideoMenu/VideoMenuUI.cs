@@ -296,6 +296,9 @@ public class VideoMenuUI : IInitializable, IDisposable
             return;
         }
 
+        // Update download state based on currently selected format
+        _currentVideo.UpdateDownloadState(_config.Format);
+
         SetupLevelDetailView(_currentVideo!);
 
         //Skip setting up the video menu if it's not showing. Prevents an unnecessary web request for the thumbnail.
@@ -681,6 +684,9 @@ public class VideoMenuUI : IInitializable, IDisposable
             SetupVideoDetails();
             return;
         }
+
+        // Update state to reflect the currently selected format
+        video.UpdateDownloadState(_config.Format);
 
         _playbackManager.PrepareVideo(video);
 
