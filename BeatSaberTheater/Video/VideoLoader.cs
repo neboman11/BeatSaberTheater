@@ -373,9 +373,10 @@ public class VideoLoader(
     {
         var songName = level.songName.Trim();
         songName = TheaterFileHelpers.ReplaceIllegalFilesystemChars(songName);
+        var songFolder = $"{songName} - {level.levelID}";
         var levelPath = Path.Combine(UnityGame.InstallPath, "Beat Saber_Data", "CustomLevels",
             OST_DIRECTORY_NAME,
-            songName);
+            songFolder);
 
         // Check Cinema folder if Theater config doesn't exist
         if (!Directory.Exists(levelPath))
@@ -526,14 +527,286 @@ public class VideoLoader(
         return configs;
     }
 
+    private async Task MigrateOSTVideosAsync()
+    {
+        try
+        {
+            var customLevelsBasePath = Path.Combine(UnityGame.InstallPath, "Beat Saber_Data", "CustomLevels");
+            var legacyBasePath = Path.Combine(customLevelsBasePath, LEGACY_OST_DIRECTORY_NAME);
+            var newBasePath = Path.Combine(customLevelsBasePath, OST_DIRECTORY_NAME);
+
+            // Move all videos from legacy folder to non-legacy folder
+            if (Directory.Exists(legacyBasePath))
+            {
+                _loggingService.Info($"Starting migration: moving legacy {LEGACY_OST_DIRECTORY_NAME} to {OST_DIRECTORY_NAME}");
+
+                if (!Directory.Exists(newBasePath))
+                    Directory.CreateDirectory(newBasePath);
+
+                var legacyDirs = Directory.GetDirectories(legacyBasePath);
+                foreach (var legacyDir in legacyDirs)
+                {
+                    try
+                    {
+                        var songFolderName = Path.GetFileName(legacyDir);
+                        var targetPath = Path.Combine(newBasePath, songFolderName);
+
+                        // If target already exists, skip
+                        if (Directory.Exists(targetPath))
+                        {
+                            _loggingService.Debug($"Target already exists, skipping: {songFolderName}");
+                            continue;
+                        }
+
+                        Directory.Move(legacyDir, targetPath);
+                        _loggingService.Info($"Moved {songFolderName} from legacy to non-legacy directory");
+
+                        // Rename legacy config file to new config file
+                        var legacyConfigPath = Path.Combine(targetPath, LEGACY_CONFIG_FILENAME);
+                        if (File.Exists(legacyConfigPath))
+                        {
+                            var newConfigPath = Path.Combine(targetPath, CONFIG_FILENAME);
+                            if (!File.Exists(newConfigPath))
+                            {
+                                File.Move(legacyConfigPath, newConfigPath);
+                                _loggingService.Info($"Renamed {LEGACY_CONFIG_FILENAME} to {CONFIG_FILENAME} in {songFolderName}");
+                            }
+                            else
+                            {
+                                File.Delete(legacyConfigPath);
+                                _loggingService.Debug($"New config already exists, deleted legacy {LEGACY_CONFIG_FILENAME} in {songFolderName}");
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        _loggingService.Warn($"Failed to move legacy folder {legacyDir}:");
+                        _loggingService.Warn(e);
+                    }
+                }
+
+                _loggingService.Info("Legacy videos moved to non-legacy directory");
+            }
+        }
+        catch (Exception e)
+        {
+            _loggingService.Error("Error during OST video migration:");
+            _loggingService.Error(e);
+        }
+    }
+
+    private async Task RenameSongFolders()
+    {
+        try
+        {
+            // Rename all folders in non-legacy directory to new format (songName - levelID)
+            var ostBasePath = Path.Combine(UnityGame.InstallPath, "Beat Saber_Data", "CustomLevels", OST_DIRECTORY_NAME);
+            _loggingService.Info("Starting migration: converting folder names to new format");
+
+            if (!Directory.Exists(ostBasePath))
+            {
+                _loggingService.Debug($"Non-legacy OST directory does not exist: {ostBasePath}");
+                return;
+            }
+
+            // Build a map of song names to list of beatmap levels (for duplicates)
+            var songNameToLevels = new Dictionary<string, List<BeatmapLevel>>(StringComparer.OrdinalIgnoreCase);
+            var levelIdToLevel = new Dictionary<string, BeatmapLevel>();
+
+            // Add all official maps
+            var officialMaps = GetOfficialMaps();
+            foreach (var level in officialMaps)
+            {
+                var songName = TheaterFileHelpers.ReplaceIllegalFilesystemChars(level.songName.Trim());
+                if (!songNameToLevels.ContainsKey(songName))
+                    songNameToLevels[songName] = new List<BeatmapLevel>();
+                songNameToLevels[songName].Add(level);
+                levelIdToLevel[level.levelID] = level;
+            }
+
+            // Add all custom levels
+            foreach (var levelPair in Loader.CustomLevels)
+            {
+                var level = levelPair.Value;
+                var songName = TheaterFileHelpers.ReplaceIllegalFilesystemChars(level.songName.Trim());
+                if (!songNameToLevels.ContainsKey(songName))
+                    songNameToLevels[songName] = new List<BeatmapLevel>();
+                songNameToLevels[songName].Add(level);
+                levelIdToLevel[level.levelID] = level;
+            }
+
+            // Process each folder in the non-legacy directory
+            var ostDirs = Directory.GetDirectories(ostBasePath);
+            var foldersToDelete = new List<string>();
+            foreach (var ostDir in ostDirs)
+            {
+                try
+                {
+                    var currentFolderName = Path.GetFileName(ostDir);
+
+                    // Check if already in new format by trying to find a matching level
+                    bool alreadyMigrated = false;
+                    foreach (var knownLevel in levelIdToLevel.Values)
+                    {
+                        var expectedFolderName = $"{TheaterFileHelpers.ReplaceIllegalFilesystemChars(knownLevel.songName.Trim())} - {knownLevel.levelID}";
+                        if (currentFolderName == expectedFolderName)
+                        {
+                            alreadyMigrated = true;
+                            break;
+                        }
+                    }
+
+                    if (alreadyMigrated)
+                    {
+                        _loggingService.Debug($"Already in new format, skipping: {currentFolderName}");
+                        continue;
+                    }
+
+                    // Try to find matching levels by song name
+                    if (!songNameToLevels.TryGetValue(currentFolderName, out var levels))
+                    {
+                        _loggingService.Debug($"Could not find beatmap level for folder: {currentFolderName}");
+                        continue;
+                    }
+
+                    // For each matching level, copy the folder to the new name
+                    bool copied = false;
+                    foreach (var level in levels)
+                    {
+                        var newFolderName = $"{TheaterFileHelpers.ReplaceIllegalFilesystemChars(level.songName.Trim())} - {level.levelID}";
+                        var newPath = Path.Combine(ostBasePath, newFolderName);
+
+                        // If new path already exists, skip
+                        if (Directory.Exists(newPath))
+                        {
+                            _loggingService.Debug($"New path already exists, skipping: {newFolderName}");
+                            continue;
+                        }
+
+                        // Copy the directory
+                        DirectoryCopy(ostDir, newPath, true);
+                        _loggingService.Info($"Copied OST video folder from {currentFolderName} to {newFolderName}");
+                        copied = true;
+                    }
+
+                    // If any copies were made, mark for deletion
+                    if (copied)
+                    {
+                        foldersToDelete.Add(ostDir);
+                    }
+                }
+                catch (Exception e)
+                {
+                    _loggingService.Warn($"Failed to migrate OST folder {ostDir}:");
+                    _loggingService.Warn(e);
+                }
+            }
+
+            // Clean up old folders
+            foreach (var folder in foldersToDelete)
+            {
+                try
+                {
+                    Directory.Delete(folder, true);
+                    _loggingService.Info($"Deleted old folder: {Path.GetFileName(folder)}");
+                }
+                catch (Exception e)
+                {
+                    _loggingService.Warn($"Failed to delete old folder {folder}:");
+                    _loggingService.Warn(e);
+                }
+            }
+
+            _loggingService.Info("Migration of OST videos completed successfully");
+        }
+        catch (Exception e)
+        {
+            _loggingService.Error("Error during OST video migration:");
+            _loggingService.Error(e);
+        }
+    }
+
+    private static void DirectoryCopy(string sourceDirName, string destDirName, bool copySubDirs)
+    {
+        // Get the subdirectories for the specified directory.
+        DirectoryInfo dir = new DirectoryInfo(sourceDirName);
+
+        if (!dir.Exists)
+        {
+            throw new DirectoryNotFoundException(
+                "Source directory does not exist or could not be found: "
+                + sourceDirName);
+        }
+
+        DirectoryInfo[] dirs = dir.GetDirectories();
+        // If the destination directory doesn't exist, create it.
+        if (!Directory.Exists(destDirName))
+        {
+            Directory.CreateDirectory(destDirName);
+        }
+
+        // Get the files in the directory and copy them to the new location.
+        FileInfo[] files = dir.GetFiles();
+        foreach (FileInfo file in files)
+        {
+            string temppath = Path.Combine(destDirName, file.Name);
+            file.CopyTo(temppath, false);
+        }
+
+        // If copying subdirectories, copy them and their contents to new location.
+        if (copySubDirs)
+        {
+            foreach (DirectoryInfo subdir in dirs)
+            {
+                string temppath = Path.Combine(destDirName, subdir.Name);
+                DirectoryCopy(subdir.FullName, temppath, copySubDirs);
+            }
+        }
+    }
+
+    private async Task MigrateOSTVideosSequentialAsync()
+    {
+        await MigrateOSTVideosAsync();
+        await RenameSongFolders();
+    }
+
+    private void OnSongsLoaded(Loader _, ConcurrentDictionary<string, BeatmapLevel> __)
+    {
+        Task.Run(async () =>
+        {
+            try
+            {
+                // Verify BeatmapLevelsModel is available before proceeding
+                var beatmapLevels = BeatmapLevelsModel;
+                if (beatmapLevels == null)
+                {
+                    _loggingService.Warn("BeatmapLevelsModel not available yet, skipping migration");
+                    return;
+                }
+            }
+            catch (Exception e)
+            {
+                _loggingService.Warn("Failed to access BeatmapLevelsModel during migration startup:");
+                _loggingService.Warn(e);
+                return;
+            }
+
+            await MigrateOSTVideosSequentialAsync();
+        });
+    }
+
     public void Initialize()
     {
         var configs = LoadBundledConfigs().Result;
         foreach (var config in configs) BundledConfigs.TryAdd(config.levelID, config.config);
+
+        // Subscribe to songs loaded event to run migration when levels are available
+        Loader.SongsLoadedEvent += OnSongsLoaded;
     }
 
     public void Dispose()
     {
+        Loader.SongsLoadedEvent -= OnSongsLoaded;
     }
 }
 
