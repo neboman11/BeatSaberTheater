@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BeatmapEditor3D.DataModels;
 using BeatSaberTheater.Download;
+using BeatSaberTheater.Settings;
 using BeatSaberTheater.Util;
 using BeatSaberTheater.Video.Config;
 using IPA.Utilities;
@@ -22,7 +23,8 @@ using Zenject;
 
 namespace BeatSaberTheater.Video;
 
-public class VideoLoader(
+internal class VideoLoader(
+    PluginConfig _config,
     TheaterCoroutineStarter _coroutineStarter,
     LoggingService _loggingService,
     CustomLevelLoader _customLevelLoader)
@@ -355,7 +357,7 @@ public class VideoLoader(
         }
 
         if (InstalledMods.BeatSaberPlaylistsLib && videoConfig == null &&
-            level.TryGetPlaylistLevelConfig(levelPath, out var playlistConfig)) videoConfig = playlistConfig;
+            level.TryGetPlaylistLevelConfig(levelPath, _config.Format, out var playlistConfig)) videoConfig = playlistConfig;
 
         return videoConfig ?? GetConfigFromBundledConfigs(level);
     }
@@ -428,26 +430,42 @@ public class VideoLoader(
             _loggingService.Debug("Config save successful");
     }
 
-    public void DeleteVideo(VideoConfig videoConfig)
+    public void DeleteVideo(VideoConfig videoConfig, VideoFormats.Format format)
     {
-        if (videoConfig.VideoPath == null)
-        {
-            _loggingService.Warn("Tried to delete video, but its path was null");
-            return;
-        }
-
         try
         {
-            File.Delete(videoConfig.VideoPath);
-            _loggingService.Info("Deleted video at " + videoConfig.VideoPath);
-            if (videoConfig.DownloadState != DownloadState.Cancelled)
-                videoConfig.DownloadState = DownloadState.NotDownloaded;
+            // Delete only the specified format's video file
+            if (videoConfig.DownloadedFormats.TryGetValue(format, out var filePath))
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                    _loggingService.Info($"Deleted {format} video at " + filePath);
+                }
 
-            videoConfig.videoFile = null;
+                // Remove the format from the dictionary
+                videoConfig.DownloadedFormats.Remove(format);
+            }
+
+            // Update download state based on remaining formats
+            if (videoConfig.DownloadedFormats.Count == 0)
+            {
+                // No formats left
+                if (videoConfig.DownloadState != DownloadState.Cancelled)
+                    videoConfig.DownloadState = DownloadState.NotDownloaded;
+
+                // Clear the legacy videoFile property only if all formats are deleted
+                videoConfig.videoFile = null;
+            }
+            else
+            {
+                // Still have other formats, update state for current format
+                videoConfig.UpdateDownloadState(_config.Format);
+            }
         }
         catch (Exception e)
         {
-            _loggingService.Error("Failed to delete video at " + videoConfig.VideoPath);
+            _loggingService.Error($"Failed to delete {format} video file");
             _loggingService.Error(e);
         }
     }
@@ -502,7 +520,8 @@ public class VideoLoader(
         if (videoConfig != null)
         {
             videoConfig.LevelDir = Path.GetDirectoryName(configPath);
-            videoConfig.UpdateDownloadState();
+            // Update download state with the current format from config
+            videoConfig.UpdateDownloadState(_config.Format);
         }
         else
         {

@@ -11,6 +11,7 @@ using BeatSaberMarkupLanguage.Parser;
 using BeatSaberTheater.Download;
 using BeatSaberTheater.Playback;
 using BeatSaberTheater.Services;
+using BeatSaberTheater.Settings;
 using BeatSaberTheater.Util;
 using BeatSaberTheater.Video;
 using BeatSaberTheater.Video.Config;
@@ -294,6 +295,9 @@ public class VideoMenuUI : IInitializable, IDisposable
             _loggingService.Debug("No video configured");
             return;
         }
+
+        // Update download state based on currently selected format
+        _currentVideo.UpdateDownloadState(_config.Format);
 
         SetupLevelDetailView(_currentVideo!);
 
@@ -681,6 +685,9 @@ public class VideoMenuUI : IInitializable, IDisposable
             return;
         }
 
+        // Update state to reflect the currently selected format
+        video.UpdateDownloadState(_config.Format);
+
         _playbackManager.PrepareVideo(video);
 
         if (_currentLevel != null) _videoLoader.RemoveConfigFromCache(_currentLevel);
@@ -732,7 +739,7 @@ public class VideoMenuUI : IInitializable, IDisposable
                 _videoLoader.AddConfigToCache(_currentVideo, _currentLevel!);
                 break;
             default:
-                _videoLoader.DeleteVideo(_currentVideo);
+                _videoLoader.DeleteVideo(_currentVideo, _config.Format);
                 _playbackManager.StopAndUnloadVideo();
                 SetupLevelDetailView(_currentVideo);
                 _levelDetailMenu?.RefreshContent();
@@ -759,7 +766,11 @@ public class VideoMenuUI : IInitializable, IDisposable
 
         if (_currentVideo.IsDownloading) _downloadService.CancelDownload(_currentVideo);
 
-        _videoLoader.DeleteVideo(_currentVideo);
+        // Delete all downloaded formats when user explicitly deletes the video
+        foreach (VideoFormats.Format format in Enum.GetValues(typeof(VideoFormats.Format)))
+        {
+            _videoLoader.DeleteVideo(_currentVideo, format);
+        }
         var success = _videoLoader.DeleteConfig(_currentVideo, _currentLevel);
         if (success) _currentVideo = null;
 

@@ -22,6 +22,7 @@ internal class DownloadService : YoutubeDLServiceBase
 {
     private readonly ConcurrentDictionary<VideoConfig, Process> _downloadProcesses = new();
     private readonly ConcurrentDictionary<VideoConfig, StringBuilder> _stderrBuffers = new();
+    private readonly ConcurrentDictionary<VideoConfig, VideoFormats.Format> _downloadFormats = new();
 
     private static readonly Regex DownloadProgressRegex = new(
         @"(?<percentage>\d+\.?\d*)%",
@@ -61,6 +62,9 @@ internal class DownloadService : YoutubeDLServiceBase
     private IEnumerator DownloadVideoCoroutine(VideoConfig video, VideoQuality.Mode quality, VideoFormats.Format format)
     {
         _loggingService.Info($"Starting download of {video.title}");
+
+        // Track which format we're downloading
+        _downloadFormats[video] = format;
 
         var downloadProcess = CreateDownloadProcess(video, quality, format);
         if (downloadProcess == null)
@@ -116,11 +120,15 @@ internal class DownloadService : YoutubeDLServiceBase
 
             video.DownloadState = DownloadState.NotDownloaded;
             video.ErrorMessage = "Download timed out.";
-            _videoLoader.DeleteVideo(video);
+
+            // Delete the format that was being downloaded
+            var timedOutFormat = _downloadFormats.TryGetValue(video, out var fmt) ? fmt : VideoFormats.Format.Mp4;
+            _videoLoader.DeleteVideo(video, timedOutFormat);
 
             DownloadFinished?.Invoke(video);
             DisposeProcess(downloadProcess);
             _stderrBuffers.TryRemove(video, out var _);
+            _downloadFormats.TryRemove(video, out var _);
             yield break;
         }
         else
@@ -170,13 +178,19 @@ internal class DownloadService : YoutubeDLServiceBase
             video.DownloadState = DownloadState.NotDownloaded;
             video.ErrorMessage = ShortenErrorMessage(stderr);
 
-            _videoLoader.DeleteVideo(video);
+            // Delete the format that failed to download
+            var failedFormat = _downloadFormats.TryGetValue(video, out var fmt) ? fmt : VideoFormats.Format.Mp4;
+            _downloadFormats.TryRemove(video, out _);
+            _videoLoader.DeleteVideo(video, failedFormat);
             DownloadFinished?.Invoke(video);
         }
         else if (video.DownloadState == DownloadState.Cancelled)
         {
             _loggingService.Info("Cancelled download");
-            _videoLoader.DeleteVideo(video);
+            // Delete the format that was being cancelled
+            var cancelledFormat = _downloadFormats.TryGetValue(video, out var fmt) ? fmt : VideoFormats.Format.Mp4;
+            _downloadFormats.TryRemove(video, out _);
+            _videoLoader.DeleteVideo(video, cancelledFormat);
             DownloadFinished?.Invoke(video);
         }
         else
@@ -186,7 +200,12 @@ internal class DownloadService : YoutubeDLServiceBase
             video.DownloadState = DownloadState.Downloaded;
             video.ErrorMessage = null;
             video.NeedsToSave = true;
-            _coroutineStarter.StartCoroutine(WaitForDownloadToFinishCoroutine(video));
+
+            // Get the format that was being downloaded
+            var downloadedFormat = _downloadFormats.TryGetValue(video, out var fmt) ? fmt : VideoFormats.Format.Mp4;
+            _downloadFormats.TryRemove(video, out _);
+
+            _coroutineStarter.StartCoroutine(WaitForDownloadToFinishCoroutine(video, downloadedFormat));
             DownloadFinished?.Invoke(video);
             _loggingService.Info($"[{process.Id}] Download of {video.title} finished successfully");
         }
@@ -262,17 +281,17 @@ internal class DownloadService : YoutubeDLServiceBase
             float.Parse(match.Groups["percentage"].Value, ci) / 100;
     }
 
-    private IEnumerator WaitForDownloadToFinishCoroutine(VideoConfig video)
+    private IEnumerator WaitForDownloadToFinishCoroutine(VideoConfig video, VideoFormats.Format format)
     {
         var timeout = new DownloadTimeout(3);
-        yield return new WaitUntil(() => timeout.HasTimedOut || File.Exists(video.VideoPath));
+        yield return new WaitUntil(() => timeout.HasTimedOut || video.DownloadedFormats.ContainsKey(format));
 
         DownloadFinished?.Invoke(video);
     }
 
     private Process? CreateDownloadProcess(VideoConfig video, VideoQuality.Mode quality, VideoFormats.Format format)
     {
-        if (video.LevelDir == null || video.VideoPath == null)
+        if (video.LevelDir == null)
         {
             _loggingService.Error("LevelDir was null during download");
             return null;
@@ -285,16 +304,27 @@ internal class DownloadService : YoutubeDLServiceBase
             return null;
         }
 
-        var path = Path.GetDirectoryName(video.VideoPath);
-        if (video.VideoPath != null && path != null && !Directory.Exists(path))
+        // Remove only the format being downloaded to allow multiple formats to coexist
+        // If the same format is downloaded again, this ensures we replace the old entry
+        if (video.DownloadedFormats.ContainsKey(format))
         {
-            _loggingService.Debug("Creating folder: " + path);
+            video.DownloadedFormats.Remove(format);
+        }
+
+        // Determine the base output directory
+        var path = Directory.GetParent(video.LevelDir)!.FullName;
+        var mapFolderName = new DirectoryInfo(video.LevelDir).Name;
+        var folder = Path.Combine(path, mapFolderName);
+
+        if (!Directory.Exists(folder))
+        {
+            _loggingService.Debug("Creating folder: " + folder);
             //Needed for OST/WIP videos
-            Directory.CreateDirectory(path);
+            Directory.CreateDirectory(folder);
         }
         else
         {
-            _loggingService.Debug("Folder already exists: " + path);
+            _loggingService.Debug("Folder already exists: " + folder);
         }
 
         string videoUrl;
@@ -322,7 +352,17 @@ internal class DownloadService : YoutubeDLServiceBase
 
         var videoFormat = VideoQuality.ToYoutubeDLFormat(video, quality);
         videoFormat = videoFormat.Length > 0 ? $" -f \"{videoFormat}\"" : "";
-        var outputPath = video.VideoPath;
+
+        // Generate the base filename
+        var baseFileName = TheaterFileHelpers.ReplaceIllegalFilesystemChars(video.title ?? video.videoID ?? "video");
+        baseFileName = TheaterFileHelpers.ShortenFilename(folder, baseFileName);
+
+        if (!Path.HasExtension(baseFileName))
+        {
+            baseFileName += ".mp4";
+        }
+
+        var outputPath = Path.Combine(folder, baseFileName);
 
         var downloadProcessArguments = videoUrl +
                                        videoFormat +
@@ -334,14 +374,18 @@ internal class DownloadService : YoutubeDLServiceBase
                                        " --socket-timeout 10" + //Retry if no response in 10 seconds Note: Not if download takes more than 10 seconds but if the time between any 2 messages from the server is 10 seconds
                                        $" --js-runtimes deno:\"{_ytDlpUpdateService.DenoDlpPath}\"";
 
-        if (format == VideoFormats.Format.Webm)
+        switch (format)
         {
-            downloadProcessArguments += $" --exec \"{Path.Combine(UnityGame.LibraryPath, "ffmpeg.exe")} -i %(filepath,_filename|)q -progress pipe:1 -c:v libvpx -crf 10 -b:v 4M -quality realtime -cpu-used 8 -c:a libvorbis \\\"{Path.GetFileNameWithoutExtension(video.VideoPath)}.webm\\\"\"";
-            video.videoFile = Path.GetFileNameWithoutExtension(video.videoFile) + ".webm";
-        }
-        else
-        {
-            downloadProcessArguments += " --recode-video mp4"; //Re-encode to mp4 (will be skipped most of the time, since it's already in an mp4 container)
+            case VideoFormats.Format.Webm:
+                var webmFileName = Path.GetFileNameWithoutExtension(baseFileName) + ".webm";
+                var webmPath = Path.Combine(folder, webmFileName);
+                downloadProcessArguments += $" --exec \"{Path.Combine(UnityGame.LibraryPath, "ffmpeg.exe")} -i %(filepath,_filename|)q -progress pipe:1 -c:v libvpx -crf 10 -b:v 4M -quality realtime -cpu-used 8 -c:a libvorbis \\\"{webmFileName}\\\"\"";
+                video.DownloadedFormats[VideoFormats.Format.Webm] = webmPath;
+                break;
+            case VideoFormats.Format.Mp4:
+                downloadProcessArguments += " --recode-video mp4"; //Re-encode to mp4 (will be skipped most of the time, since it's already in an mp4 container)
+                video.DownloadedFormats[VideoFormats.Format.Mp4] = outputPath;
+                break;
         }
 
         var process = CreateProcess(downloadProcessArguments, video.LevelDir);
@@ -376,7 +420,10 @@ internal class DownloadService : YoutubeDLServiceBase
         var success = _downloadProcesses.TryGetValue(video, out var process);
         if (success) DisposeProcess(process);
 
-        _videoLoader.DeleteVideo(video);
+        // Delete the format that was being downloaded
+        var cancelFormat = _downloadFormats.TryGetValue(video, out var fmt) ? fmt : VideoFormats.Format.Mp4;
+        _downloadFormats.TryRemove(video, out var _);
+        _videoLoader.DeleteVideo(video, cancelFormat);
     }
 
     private bool UrlInWhitelist(string url)

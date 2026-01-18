@@ -263,7 +263,8 @@ public class PlaybackManager : MonoBehaviour
 
         if (_videoConfig == null || !_videoConfig.IsPlayable)
         {
-            _loggingService.Info("No video configured or video is not playable: " + _videoConfig?.VideoPath);
+            var videoPath = _videoConfig?.GetVideoPathForFormat(_config.Format);
+            _loggingService.Info("No video configured or video is not playable: " + videoPath);
 
             if (_config.CoverEnabled && (_videoConfig?.forceEnvironmentModifications == null ||
                                          _videoConfig.forceEnvironmentModifications == false))
@@ -300,7 +301,7 @@ public class PlaybackManager : MonoBehaviour
 
     private void OnConfigChanged(VideoConfig? config, bool? reloadVideo)
     {
-        var previousVideoPath = _videoConfig?.VideoPath;
+        var previousVideoPath = _videoConfig?.GetVideoPathForFormat(_config.Format);
         _videoConfig = config;
 
         if (config == null)
@@ -322,7 +323,8 @@ public class PlaybackManager : MonoBehaviour
             ResyncVideo();
         }
 
-        if (previousVideoPath != config.VideoPath || reloadVideo == true)
+        var currentVideoPath = config.GetVideoPathForFormat(_config.Format);
+        if (previousVideoPath != currentVideoPath || reloadVideo == true)
         {
             _videoPlayer.AddPrepareCompletedEventHandler(ConfigChangedPrepareHandler);
             PrepareVideo(config);
@@ -712,7 +714,7 @@ public class PlaybackManager : MonoBehaviour
         StopPlayback();
         if (_videoConfig == null) return;
 
-        _videoConfig.UpdateDownloadState();
+        _videoConfig.UpdateDownloadState(_config.Format);
         _videoConfig.ErrorMessage = "Theater playback error.";
         if (message.Contains("Unexpected error code (10)") && SystemInfo.graphicsDeviceVendor == "NVIDIA")
             _videoConfig.ErrorMessage += " Try disabling NVIDIA Fast Sync.";
@@ -756,27 +758,24 @@ public class PlaybackManager : MonoBehaviour
         _videoPlayer.SetScreenShaderParameters(video);
         _videoPlayer.SetBloomIntensity(video.bloom);
 
-        if (video.VideoPath == null)
+        var videoPath = video.GetVideoPathForFormat(_config.Format);
+        if (videoPath == null)
         {
-            _loggingService.Debug("Video path was null, stopping prepare");
+            _loggingService.Debug("Video file with desired format not found, stopping prepare");
+            _videoPlayer.FadeOut();
             yield break;
         }
-
-        var videoPath = video.VideoPath;
         _loggingService.Info($"Loading video: {videoPath}");
 
-        if (video.videoFile != null)
-        {
-            var videoFileInfo = new FileInfo(videoPath);
-            var timeout = new DownloadTimeout(0.25f);
-            if (_videoPlayer.Url != videoPath)
-                yield return new WaitUntil(() =>
-                    !TheaterFileHelpers.IsFileLocked(videoFileInfo) || timeout.HasTimedOut);
+        var videoFileInfo = new FileInfo(videoPath);
+        var timeout = new DownloadTimeout(0.25f);
+        if (_videoPlayer.Url != videoPath)
+            yield return new WaitUntil(() =>
+                !TheaterFileHelpers.IsFileLocked(videoFileInfo) || timeout.HasTimedOut);
 
-            timeout.Stop();
-            if (timeout.HasTimedOut && TheaterFileHelpers.IsFileLocked(videoFileInfo))
-                _loggingService.Warn("Video file locked: " + videoPath);
-        }
+        timeout.Stop();
+        if (timeout.HasTimedOut && TheaterFileHelpers.IsFileLocked(videoFileInfo))
+            _loggingService.Warn("Video file locked: " + videoPath);
 
         _videoPlayer.Url = videoPath;
         _videoPlayer.Prepare();
