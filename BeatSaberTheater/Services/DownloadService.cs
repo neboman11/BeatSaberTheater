@@ -22,6 +22,7 @@ internal class DownloadService : YoutubeDLServiceBase
 {
     private readonly ConcurrentDictionary<VideoConfig, Process> _downloadProcesses = new();
     private readonly ConcurrentDictionary<VideoConfig, StringBuilder> _stderrBuffers = new();
+    private readonly ConcurrentDictionary<VideoConfig, VideoFormats.Format> _downloadFormats = new();
 
     private static readonly Regex DownloadProgressRegex = new(
         @"(?<percentage>\d+\.?\d*)%",
@@ -61,6 +62,9 @@ internal class DownloadService : YoutubeDLServiceBase
     private IEnumerator DownloadVideoCoroutine(VideoConfig video, VideoQuality.Mode quality, VideoFormats.Format format)
     {
         _loggingService.Info($"Starting download of {video.title}");
+
+        // Track which format we're downloading
+        _downloadFormats[video] = format;
 
         var downloadProcess = CreateDownloadProcess(video, quality, format);
         if (downloadProcess == null)
@@ -121,6 +125,7 @@ internal class DownloadService : YoutubeDLServiceBase
             DownloadFinished?.Invoke(video);
             DisposeProcess(downloadProcess);
             _stderrBuffers.TryRemove(video, out var _);
+            _downloadFormats.TryRemove(video, out var _);
             yield break;
         }
         else
@@ -186,7 +191,12 @@ internal class DownloadService : YoutubeDLServiceBase
             video.DownloadState = DownloadState.Downloaded;
             video.ErrorMessage = null;
             video.NeedsToSave = true;
-            _coroutineStarter.StartCoroutine(WaitForDownloadToFinishCoroutine(video));
+
+            // Get the format that was being downloaded
+            var downloadedFormat = _downloadFormats.TryGetValue(video, out var fmt) ? fmt : VideoFormats.Format.Mp4;
+            _downloadFormats.TryRemove(video, out _);
+
+            _coroutineStarter.StartCoroutine(WaitForDownloadToFinishCoroutine(video, downloadedFormat));
             DownloadFinished?.Invoke(video);
             _loggingService.Info($"[{process.Id}] Download of {video.title} finished successfully");
         }
@@ -262,10 +272,10 @@ internal class DownloadService : YoutubeDLServiceBase
             float.Parse(match.Groups["percentage"].Value, ci) / 100;
     }
 
-    private IEnumerator WaitForDownloadToFinishCoroutine(VideoConfig video)
+    private IEnumerator WaitForDownloadToFinishCoroutine(VideoConfig video, VideoFormats.Format format)
     {
         var timeout = new DownloadTimeout(3);
-        yield return new WaitUntil(() => timeout.HasTimedOut || video.DownloadedFormats.Count > 0);
+        yield return new WaitUntil(() => timeout.HasTimedOut || video.DownloadedFormats.ContainsKey(format));
 
         DownloadFinished?.Invoke(video);
     }
@@ -285,9 +295,12 @@ internal class DownloadService : YoutubeDLServiceBase
             return null;
         }
 
-        // Clear any existing downloaded formats to prevent stale data from previous songs
-        // This ensures each download starts with a clean slate
-        video.DownloadedFormats.Clear();
+        // Remove only the format being downloaded to allow multiple formats to coexist
+        // If the same format is downloaded again, this ensures we replace the old entry
+        if (video.DownloadedFormats.ContainsKey(format))
+        {
+            video.DownloadedFormats.Remove(format);
+        }
 
         // Determine the base output directory
         var path = Directory.GetParent(video.LevelDir)!.FullName;
@@ -398,6 +411,7 @@ internal class DownloadService : YoutubeDLServiceBase
         var success = _downloadProcesses.TryGetValue(video, out var process);
         if (success) DisposeProcess(process);
 
+        _downloadFormats.TryRemove(video, out var _);
         _videoLoader.DeleteVideo(video);
     }
 
